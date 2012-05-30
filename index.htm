@@ -1,0 +1,2241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+  <head>
+    <title>sb2.js project viewer</title>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+
+    <script type="text/javascript" src='script/ZipFile.complete.js'></script>
+    <script type="text/javascript" src="http://canvg.googlecode.com/svn/trunk/rgbcolor.js"></script> 
+    <script type="text/javascript" src="http://canvg.googlecode.com/svn/trunk/canvg.js"></script> 
+
+    <script type="text/javascript" src='http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js'></script>
+
+    <script type="text/javascript" src='http://ajax.googleapis.com/ajax/libs/jqueryui/1.7.2/jquery-ui.min.js'></script>
+
+<script>
+
+// sb2.js project viewer by RHY3756547
+// ----------------------------------
+//
+// Converts scratch projects to javascript (client side) and excutes them.
+//
+// ZipFile (zip reader) by Cheeso (http://cheeso.members.winisp.net/)
+// CanVG (for rasterising SVGs) by gabelerner i think (http://code.google.com/p/canvg/)
+
+
+// general purpose functions
+
+// base 64 encode by some guy 
+// thanks some guy
+
+function base64Encode(bytearray){
+
+    var digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
+        i = 0,
+        cur, prev, byteNum,
+        result=[];      
+
+    while(i < bytearray.length){
+
+        cur = bytearray[i];
+        byteNum = i % 3;
+
+        switch(byteNum){
+            case 0: //first byte
+                result.push(digits.charAt(cur >> 2));
+                break;
+
+            case 1: //second byte
+                result.push(digits.charAt((prev & 3) << 4 | (cur >> 4)));
+                break;
+
+            case 2: //third byte
+                result.push(digits.charAt((prev & 0x0f) << 2 | (cur >> 6)));
+                result.push(digits.charAt(cur & 0x3f));
+                break;
+        }
+
+        prev = cur;
+        i++;
+    }
+
+    if (byteNum == 0){
+        result.push(digits.charAt((prev & 3) << 4));
+        result.push("==");
+    } else if (byteNum == 1){
+        result.push(digits.charAt((prev & 0x0f) << 2));
+        result.push("=");
+    }
+
+    return result.join("");
+}
+
+// START SCRATCH BLOCK FUNCTIONS
+// not all blocks need to be functions but it speeds up the ones that need multiple lines of code and get slowed down by eval()
+
+function scratchSetVar(spriten, name, value) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].variables != 'undefined') {
+
+	var id = varIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		sprites[spriten].variables[id].value = value;
+		return;
+	}
+
+	}
+
+	}
+
+	id = globalvarIndex.indexOf(name);
+
+	if (id != -1) {
+		project.variables[id].value = value;
+		return;
+	}
+
+	log("Cannot set variable '"+name+"', does not exist!");
+}
+
+function scratchChangeVar(spriten, name, value) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].variables != 'undefined') {
+
+	var id = varIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		sprites[spriten].variables[id].value = Number(sprites[spriten].variables[id].value)
+		sprites[spriten].variables[id].value += Number(value);
+		return;
+	}
+
+	}
+
+	}
+
+	id = globalvarIndex.indexOf(name);
+
+	if (id != -1) {
+		project.variables[id].value = Number(project.variables[id].value);
+		project.variables[id].value += Number(value);
+		return;
+	}
+
+	log("Cannot set variable '"+name+"', does not exist!");
+}
+
+function scratchReadVar(spriten, name) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].variables != 'undefined') {
+
+	var id = varIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		return sprites[spriten].variables[id].value;
+	}
+
+	}
+
+	}
+
+	id = globalvarIndex.indexOf(name);
+
+	if (id != -1) {
+		return project.variables[id].value;
+	}
+
+	log("Cannot read variable '"+name+"', does not exist!");
+}
+
+function scratchGetAttribute(name, target) {
+
+	for (i=0;i<sprites.length;i++) {
+		if (sprites[i].objName == target) {
+			target = i;
+		}
+	}
+
+	if (typeof sprites[target].variables != 'undefined') {
+
+	var id = varIndex[target].indexOf(name);
+
+	if (id != -1) {
+		return sprites[target].variables[id].value;
+	}
+	}
+
+}
+
+function scratchReadList(spriten, location, name) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].lists != 'undefined') {
+
+	var id = listIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		if (location == 'any') {
+			return sprites[spriten].lists[id].contents[scratchRandomFromTo(1, sprites[spriten].lists[id].contents.length)];
+		} else if (location == 'last') {
+			return sprites[spriten].lists[id].contents[sprites[spriten].lists[id].contents.length];
+		} else {
+			return sprites[spriten].lists[id].contents[location-1];
+		}
+	}
+
+	}
+
+	}
+
+	var id = globallistIndex.indexOf(name);
+
+	if (id != -1) {
+		if (location == 'any') {
+			return project.lists[id].contents[scratchRandomFromTo(1, project.lists[id].contents.length)];
+		} else if (location == 'last') {
+			return project.lists[id].contents[project.lists[id].contents.length];
+		} else {
+			return project.lists[id].contents[location-1];
+		}
+	}
+
+	log("Cannot read from list '"+name+"', does not exist!");
+}
+
+function scratchAppendList(spriten, value, name) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].lists != 'undefined') {
+
+	var id = listIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		sprites[spriten].lists[id].contents.push(value);
+		return;
+	}
+
+	}
+
+	}
+
+	var id = globallistIndex.indexOf(name);
+
+	if (id != -1) {
+		project.lists[id].contents.push(value);
+		return;
+	}
+
+	log("Cannot add to list '"+name+"', does not exist!");
+}
+
+function scratchDeleteList(spriten, location, name) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].lists != 'undefined') {
+
+	var id = listIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		
+		if (location == 'all') {
+			sprites[spriten].lists[id].contents = new Array();
+		} else if (location == 'last') {
+			sprites[spriten].lists[id].contents.pop();
+		} else {
+			sprites[spriten].lists[id].contents.splice(location-1, 1);
+		}
+		return;
+	}
+
+	}
+
+	}
+
+	var id = globallistIndex.indexOf(name);
+
+	if (id != -1) {
+
+		if (location == 'all') {
+			project.lists[id].contents = new Array();
+		} else if (location == 'last') {
+			project.lists[id].contents.pop();
+		} else {
+			project.lists[id].contents.splice(location-1, 1);
+		}
+		return;
+	}
+
+	log("Cannot remove from list '"+name+"', does not exist!");
+}
+
+function scratchAddList(spriten, value, location, name) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].lists != 'undefined') {
+
+	var id = listIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		
+		if (location == 'any') {
+			sprites[spriten].lists[id].contents.splice(scratchRandomFromTo(1, sprites[spriten].lists[id].contents.length), 0, value);
+		} else if (location == 'last') {
+			sprites[spriten].lists[id].contents.push(value);
+		} else {
+			sprites[spriten].lists[id].contents.splice(location-1, 0, value);
+		}
+		return;
+	}
+
+	}
+
+	}
+
+	var id = globallistIndex.indexOf(name);
+
+	if (id != -1) {
+
+		if (location == 'any') {
+			project.lists[id].contents.splice(location-1, scratchRandomFromTo(1, project.lists[id].contents.length), value);
+		} else if (location == 'last') {
+			project.lists[id].contents.push(value);
+		} else {
+			project.lists[id].contents.splice(location-1, 0, value);
+		}
+		return;
+	}
+
+	log("Cannot add to list '"+name+"', does not exist!");
+}
+
+function scratchReplaceList(spriten, value, location, name) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].lists != 'undefined') {
+
+	var id = listIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		
+		if (location == 'any') {
+			sprites[spriten].lists[id].contents[scratchRandomFromTo(1, sprites[spriten].lists[id].contents.length)] = value;
+		} else if (location == 'last') {
+			sprites[spriten].lists[id].contents[sprites[spriten].lists[id].contents.length] = value;
+		} else {
+			sprites[spriten].lists[id].contents[location-1] = value;
+		}
+		return;
+	}
+
+	}
+
+	}
+
+	var id = globallistIndex.indexOf(name);
+
+	if (id != -1) {
+
+		if (location == 'any') {
+			project.lists[id].contents[scratchRandomFromTo(1, project.lists[id].contents.length)] = value;
+		} else if (location == 'last') {
+			project.lists[id].contents[project.lists[id].contents.length] = value;
+		} else {
+			project.lists[id].contents[location-1] = value;
+		}
+
+		return;
+	}
+
+	log("Cannot remove from list '"+name+"', does not exist!");
+}
+
+
+function scratchListLength(spriten, name) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].lists != 'undefined') {
+
+	var id = listIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		return sprites[spriten].lists[id].contents.length;
+	}
+
+	}
+
+	}
+
+	var id = globallistIndex.indexOf(name);
+
+	if (id != -1) {
+		return project.lists[id].contents.length;
+	}
+}
+
+function scratchListContains(spriten, name, value) {
+
+	if (!(spriten == -1)) {
+
+	if (typeof sprites[spriten].lists != 'undefined') {
+
+	var id = listIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		return (sprites[spriten].lists[id].contents.indexOf(value) > -1);
+	}
+
+	}
+
+	}
+
+	var id = globallistIndex.indexOf(name);
+
+	if (id != -1) {
+		return (project.lists[id].contents.indexOf(value) > -1);
+	}
+}
+
+
+
+function scratchGotoSprite(spriten, name) {
+	if (name == '_mouse_') {
+		sprites[spriten].scratchX = MouseX;
+		sprites[spriten].scratchY = MouseY;
+	}
+
+	for (i=0;i<sprites.length;i++) {
+		if (sprites[i].objName == name) {
+			sprites[spriten].scratchX = sprites[i].scratchX;
+			sprites[spriten].scratchY = sprites[i].scratchY;
+			return;
+		}
+	}
+}
+
+function scratchStopAllSounds() {
+
+	if (typeof audio == 'undefined') return;
+
+	for (i=0;i<audio.length;i++) {
+		try {
+		audio[i].pause();
+		audio[i].currentTime = 0.0;
+		} catch(err) {
+
+		}
+	}
+}
+
+function scratchDistance(spriten, name) {
+	if (name == '_mouse_') {	
+		return Math.sqrt(Math.pow((sprites[spriten].scratchX - MouseX), 2) + Math.pow((sprites[spriten].scratchY - MouseY), 2));
+	}
+
+	for (i=0;i<sprites.length;i++) {
+		if (sprites[i].objName == name) {
+			return Math.sqrt((sprites[spriten].scratchX - sprites[i].scratchX)^2 + (sprites[spriten].scratchY - sprites[i].scratchY)^2);
+		}
+	}
+}
+
+function scratchPointTowards(spriten, name) {
+	if (name == '_mouse_') {
+		//alert();
+		sprites[spriten].direction = (Math.atan2(MouseX - sprites[spriten].scratchX, MouseY - sprites[spriten].scratchY)/Math.PI)*180;
+	}
+
+	for (i=0;i<sprites.length;i++) {
+		if (sprites[i].objName == name) {
+			sprites[spriten].direction = (Math.atan2(sprites[i].scratchX - sprites[spriten].scratchX, sprites[8].scratchY - sprites[spriten].scratchY)/Math.PI)*180;
+		}
+	}
+
+	if (sprites[spriten].direction < -180) sprites[spriten].direction += 360*Math.ceil((sprites[spriten].direction+180)/-360);
+	sprites[spriten].direction = ((sprites[spriten].direction+180)%360)-180;
+}
+
+function scratchStep(spriten, value) {
+	//alert(value);
+	sprites[spriten].scratchX = Number(sprites[spriten].scratchX);
+	sprites[spriten].scratchY = Number(sprites[spriten].scratchY);
+
+	sprites[spriten].scratchX += Math.sin(sprites[spriten].direction*Math.PI/180)*value;
+	sprites[spriten].scratchY += Math.cos(sprites[spriten].direction*Math.PI/180)*value;
+}
+
+function scratchMathFunction(type, value) {
+	if (type == "abs") return Math.abs(value);
+	if (type == "sqrt") return Math.sqrt(value);
+	if (type == "sin") return Math.sin(value*Math.PI/180);
+	if (type == "cos") return Math.cos(value*Math.PI/180);
+	if (type == "tan") return Math.tan(value*Math.PI/180);
+	if (type == "asin") return Math.asin(value)*180/Math.PI;
+	if (type == "acos") return Math.acos(value)*180/Math.PI;
+	if (type == "atan") return Math.atan(value)*180/Math.PI;
+	return 0;
+}
+
+function scratchSetCostume(spriten, value) {
+
+	for (i=0;i<sprites[spriten].costumes.length;i++) {
+		if (sprites[spriten].costumes[i].costumeName == value) {
+			sprites[spriten].currentCostumeIndex = i;
+			return;
+		}
+	}
+	if (value < 1) value = sprites[spriten].costumes.length;
+	sprites[spriten].currentCostumeIndex = Math.max(Math.min(Math.round(value-1), sprites[spriten].costumes.length-1), 0);
+}
+
+function scratchRandomFromTo(rand1, rand2) {
+	return Math.floor(((rand2+1)-rand1)*Math.random())+rand1;
+}
+
+function scratchCollisionDetect(spriten, target) {
+	return false;
+}
+
+function scratchParseCharCode(key) {
+	if (key == "up arrow") return 38;
+	else if (key == "left arrow") return 37;
+	else if (key == "right arrow") return 39;
+	else if (key == "down arrow") return 40;
+	else if (key == "space") key = " ";
+
+	return key.charCodeAt(0);	
+}
+
+function scratchKeyDown(key) {
+	if (key == "up arrow") return keyDownArray[38];
+	else if (key == "left arrow") return keyDownArray[37];
+	else if (key == "right arrow") return keyDownArray[39];
+	else if (key == "down arrow") return keyDownArray[40];
+	else if (key == "space") key = " ";
+
+	return keyDownArray[key.charCodeAt(0)];	
+}
+
+function scratchMod(val1, val2) {
+	return val1-(Math.floor(val1/val2)*val2);
+}
+
+function scratchGotoXY(spriten, x, y) {
+	if (specialproperties[spriten].pendown) {
+		penctx.beginPath();
+		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
+		penctx.lineTo(x+240, 180-y);
+		penctx.stroke();
+	}
+	sprites[spriten].scratchX = x;
+	sprites[spriten].scratchY = y;
+}
+
+function scratchGotoX(spriten, x) {
+	if (specialproperties[spriten].pendown) {
+		penctx.beginPath();
+		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
+		penctx.lineTo(x+240, 180-sprites[spriten].scratchY);
+		penctx.stroke();
+	}
+	sprites[spriten].scratchX = x;
+}
+
+function scratchChangeX(spriten, x) {
+	if (specialproperties[spriten].pendown) {
+		penctx.beginPath();
+		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
+		penctx.lineTo(sprites[spriten].scratchX+x+240, 180-sprites[spriten].scratchY);
+		penctx.stroke();
+	}
+	sprites[spriten].scratchX += x;
+}
+
+function scratchGotoY(spriten, y) {
+	if (specialproperties[spriten].pendown) {
+		penctx.beginPath();
+		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
+		penctx.lineTo(sprites[spriten].scratchX+240, 180-y);
+		penctx.stroke();
+	}
+	sprites[spriten].scratchY = y;
+}
+
+function scratchChangeY(spriten, y) {
+	if (specialproperties[spriten].pendown) {
+		penctx.beginPath();
+		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
+		penctx.lineTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY+y);
+		penctx.stroke();
+	}
+	sprites[spriten].scratchY += y;
+}
+
+function scratchGraphicEffect(spriten, type, value) {
+	specialproperties[spriten].effects[type] = value;
+	if (type == "ghost") specialproperties[spriten].effects[type] = Math.min(Math.max(0, specialproperties[spriten].effects[type]), 100);
+}
+
+function scratchSay(spriten, value) {
+	specialproperties[spriten].say = value;
+	specialproperties[spriten].think = false;
+}
+
+function scratchAsk(spriten, value) {
+	specialproperties[spriten].say = value;
+	specialproperties[spriten].think = false;
+	specialproperties[spriten].ask = true;
+}
+
+function scratchThink(spriten, value) {
+	specialproperties[spriten].say = value;
+	specialproperties[spriten].think = true;
+}
+
+function scratchChangeGraphicEffect(spriten, type, value) {
+	specialproperties[spriten].effects[type] += value;
+	if (type == "ghost") specialproperties[spriten].effects[type] = Math.min(Math.max(0, specialproperties[spriten].effects[type]), 100);
+}
+
+function scratchPlaySound(spriten, name) {
+	if (typeof sprites[spriten].sounds != 'undefined') {
+
+	var id = soundIndex[spriten].indexOf(name);
+
+	if (id != -1) {
+		audio[sprites[spriten].sounds[id].soundID].play();
+		return;
+	}
+
+	}
+
+	id = globalsoundIndex.indexOf(name);
+
+	if (id != -1) {
+		audio[project.sounds[id].soundID].play();
+		return;
+	}
+
+	if (Number(name) != NaN) {
+
+		if (soundIndex[spriten].length >= name) {
+
+			audio[sprites[spriten].sounds[name].soundID].play();
+			return;
+
+		}
+
+		if (globalsoundIndex.length >= name) {
+
+			audio[project.sounds[name].soundID].play();
+			return;
+
+		}
+
+	}
+
+	log("Cannot play sound '"+name+"', does not exist!");
+}
+
+function scratchColorCollision(spriten, target) {
+
+ 	target = (16777216 + target).toString(16);
+	for (cl=0;cl<(6-target.length);i++) {
+		target = "0"+target;
+	}
+
+	var targetr = parseInt(target.substr(0,2), 16)
+	var targetg = parseInt(target.substr(2,2), 16)
+	var targetb = parseInt(target.substr(4,2), 16)
+
+	colcanvas.width = 480;
+	colcanvas.height = 360;
+
+	var costume = project.costumes[project.currentCostumeIndex];
+	colctx.drawImage(images[costume.baseLayerID], (0-costume.rotationCenterX)+240, (0-costume.rotationCenterY)+180);
+
+	colctx.drawImage(pencanvas, 0, 0);
+	colctx.drawImage(sprcanvas, 0, 0);
+
+	var costume = sprites[spriten].costumes[sprites[spriten].currentCostumeIndex];
+
+	var colourcheck = colctx.getImageData(Math.round(240+sprites[spriten].scratchX)-costume.rotationCenterX, Math.round(180-sprites[spriten].scratchY)-costume.rotationCenterY, images[costume.baseLayerID].width, images[costume.baseLayerID].height);
+
+	colcanvas.width = images[costume.baseLayerID].width;
+	colcanvas.height = images[costume.baseLayerID].height;
+
+	colctx.drawImage(images[costume.baseLayerID], 0, 0);
+	
+	var colourcheck2 = colctx.getImageData(0, 0, colcanvas.width, colcanvas.height);
+
+	var cwidth = colcanvas.width;
+	var cheight = colcanvas.height;
+
+	for (var x=0;x<cwidth;x++) {
+		for (var y=0;y<cheight;y++) {
+			if ((colourcheck2.data[(x+y*cwidth)*4+3] != 0) && (colourcheck.data[(x+y*cwidth)*4] == targetr) && (colourcheck.data[(x+y*cwidth)*4+1] == targetg) && (colourcheck.data[(x+y*cwidth)*4+2] == targetb)) return true;
+		}
+	}
+
+	return false;
+
+}
+
+// ----- SCRATCH PEN BLOCKS -----
+
+function scratchClearPen() {
+	penctx.clearRect(0, 0, 480, 360);
+}
+
+function scratchPenDot(spriten) {
+	penctx.lineCap = "round";
+	penctx.beginPath();
+	penctx.lineWidth = specialproperties[spriten].pensize;
+	penctx.strokeStyle = specialproperties[spriten].color;
+	penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY); 
+	penctx.lineTo(sprites[spriten].scratchX+240.1, 180-sprites[spriten].scratchY);
+	penctx.stroke();
+}
+
+function scratchPenColor(spriten, value) {
+ 	value = (16777216 + value).toString(16);
+	for (cl=0;cl<(6-value.length);i++) {
+		value = "0"+value;
+	}
+	specialproperties[spriten].color = "#"+value;
+	penctx.strokeStyle = specialproperties[spriten].color;
+}
+
+function scratchPenSize(spriten, value) {
+ 	specialproperties[spriten].pensize = Math.max(Math.round(value), 1);
+	penctx.lineWidth = specialproperties[spriten].pensize;
+}
+
+function scratchStamp(spriten) {
+
+	penctx.save();
+	var costume = sprites[spriten].costumes[sprites[spriten].currentCostumeIndex];
+	var costdir = (sprites[spriten].direction-90) * Math.PI / 180;
+			
+	penctx.translate(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
+	penctx.rotate(costdir);
+	penctx.scale(sprites[spriten].scale, sprites[spriten].scale);
+
+	penctx.drawImage(images[costume.baseLayerID], -costume.rotationCenterX, -costume.rotationCenterY);
+			
+
+	if (typeof costume.text != 'undefined') {
+		penctx.drawImage(images[costume.textLayerID], -costume.rotationCenterX, -costume.rotationCenterY);
+	}
+	penctx.restore();
+}
+
+// END SCRATCH BLOCKS
+
+
+totalfiles = 7;
+loaded = 0;
+
+function drawProgress() {
+	baranim += 1;
+	framectx.clearRect(0, 0, 486, 391);
+	framectx.drawImage(frame, 0, 0);
+	framectx.drawImage(preload, 3, 28);
+	//framectx.fillStyle = "#FF9900";
+    	//framectx.font = "6pt Arial";
+	//var textmeasure = framectx.measureText(LoadBytes+" / "+LoadTotal);
+	//var textmeasure = 20;
+	//framectx.fillText(LoadBytes+" / "+LoadTotal, (143+100)-(textmeasure/2), 270-2);
+	//var textmeasure = framectx.measureText(LoadProgress+"%");
+	//framectx.textBaseline = "top";
+	//framectx.fillText(LoadProgress+"%", (143+100)-(textmeasure/2), 251-2);
+	barctx.drawImage(bar, -50+baranim%50, 0);
+    	barctx.font = "6pt Arial";
+	//barctx.textBaseline = "top";
+	//barctx.fillStyle = "#FFFFFF";
+	//barctx.fillText(LoadProgress+"%", 100-(textmeasure/2), -2);
+	barctx.clearRect(199-Math.round((100-LoadProgress)*1.98),1,Math.round((100-LoadProgress)*1.98),6);
+	framectx.drawImage(barcanvas, 143, 251);
+}
+
+function IncLoad() {
+	loaded += 1;
+	if (loaded == totalfiles) {
+		framectx.drawImage(frame, 0, 0)
+	}
+}
+
+window.onload = init;
+
+function renderSVGs() {
+	svgcanvas = document.createElement("canvas");
+	svgctx = canvas.getContext("2d");
+
+		for (i=0;i<svgs.length;i++) {
+			var imagenum = svgnums[i];
+			canvg(svgcanvas, svgs[i]);
+			images[imagenum] = new Image();
+			images[imagenum].src = svgcanvas.toDataURL()
+			document.getElementById('test2').innerHTML += "<img src='"+ images[imagenum].src +"'>"
+		}
+
+}
+
+function keyPress(evt) {
+
+	/*
+	if (focus) {
+
+		//alert (evt.keyCode);
+	
+		for (j=0;j<keyPressScripts[evt.keyCode].length;j++) {
+			eval(String(keyPressScripts[evt.keyCode][j]).substr(14, String(keyPressScripts[evt.keyCode][j]).length-15));
+		}
+
+	}
+	*/
+}
+
+function keyDown(evt) {
+	if (focus) {
+
+		if (evt.keyCode == 96) {
+
+			if (console) console = false;
+			else console = true;
+	
+		}
+
+		/*
+		if ((evt.keyCode >= 37) && (evt.keyCode <= 40)) {
+
+			for (j=0;j<keyPressScripts[evt.keyCode].length;j++) {
+				eval(String(keyPressScripts[evt.keyCode][j]).substr(14, String(keyPressScripts[evt.keyCode][j]).length-15));
+			}
+
+		}
+		*/
+
+		keyDownArray[evt.keyCode] = true;
+
+		for (j=0;j<keyPressScripts[evt.keyCode].length;j++) {
+			eval(String(keyPressScripts[evt.keyCode][j]).substr(14, String(keyPressScripts[evt.keyCode][j]).length-15));
+		}
+
+	}
+}
+
+function keyUp(evt) {
+	if (focus) {
+
+		keyDownArray[evt.keyCode] = false;
+
+	}
+}
+
+function getMousePosition(evt) {
+	el = framecanvas
+
+	var _x = 0;
+	var _y = 0;
+
+    while( el && !isNaN( el.offsetLeft ) && !isNaN( el.offsetTop ) ) {
+       	_x += el.offsetLeft - el.scrollLeft;
+        _y += el.offsetTop - el.scrollTop;
+        el = el.offsetParent;
+    }
+
+
+	MouseX = (evt.pageX - _x)-241;
+	MouseY = 206 - (evt.pageY - _y);
+
+
+}
+
+function alertMouse(evt) {
+
+	if (loadedb) {
+
+	if ((MouseX > 180) && (MouseX < 206) && (MouseY < 205) && (MouseY > 184)) {
+		stopAll();
+		execGreenFlag();
+	}
+
+	if ((MouseX > 215) && (MouseX < 235) && (MouseY < 205) && (MouseY > 184)) {
+		stopAll();
+	}
+
+	}
+}
+
+function init() {
+
+	console = false;
+	consolelog = new Array();
+
+	log("sb2.js by RHY3756547");
+	log("Development Version");
+	log("-----------------------------");
+	log(" ");
+
+	baranim = 0;
+
+	focussteal = document.getElementById('scratch');
+
+	loadedb = new Boolean(false);
+
+	keyDownArray = new Array();
+	for (i=0;i<256;i++){
+		keyDownArray[i] = false;
+	}
+	document.onkeydown=keyDown;
+	document.onkeypress=keyPress;
+	document.onkeyup=keyUp;
+
+	parent.window.onmousedown = function(evt) {
+		focus = 0;
+	};
+
+
+	MouseX = 0;
+	MouseY = 0;
+
+	framecanvas = document.getElementById('scratch');
+    	framectx = framecanvas.getContext('2d');
+
+	barcanvas = document.createElement("canvas");
+	barcanvas.width = 200;
+	barcanvas.height = 8;
+    	barctx = barcanvas.getContext('2d');
+
+	framecanvas.onmouseup = function(evt) {
+		focus = 1;
+	};
+
+	framecanvas.onmousedown = alertMouse;
+	framecanvas.onmousemove = getMousePosition;
+
+	frame = new Image();
+	frame.src = "frame.png"
+	frame.onload = IncLoad;
+
+	bar = new Image();
+	bar.src = "bar.png"
+	bar.onload = IncLoad;
+
+	greenflagn = new Image();
+	greenflagn.src = "greenflag.png"
+	greenflagn.onload = IncLoad;
+
+	greenflaga = new Image();
+	greenflaga.src = "greenflaga.png"
+	greenflaga.onload = IncLoad;
+
+	stopn = new Image();
+	stopn.src = "stop.png"
+	stopn.onload = IncLoad;
+
+	stopa = new Image();
+	stopa.src = "stopa.png"
+	stopa.onload = IncLoad;
+
+	preload = new Image();
+	preload.src = "preloader.png"
+	preload.onload = IncLoad;
+
+}
+
+
+function blockHandler(block, reporter) {
+
+
+	if (!reporter) {
+		if (!(Object.prototype.toString.call( block ) === '[object Array]')) { //; //if it's not a list then it's not a block, it's actually a string
+			block = [block];
+		}
+	}
+
+	//alert(block[0]);
+
+	if (!reporter || (Object.prototype.toString.call( block ) === '[object Array]')){
+		var j=0;
+		var f=0;
+		if (!reporter) {
+			if (block[0] == "whenGreenFlag") {
+
+				scripttext += "greenflag["+spritenum+"][greenflag["+spritenum+"].length] = function() { ";
+				greenflaglength += 1;
+				for (j=1;j<block.length;j++){
+					ifLoopVar.push(j);
+					blockHandler(block[j], false);
+					j = ifLoopVar.pop();
+				}
+				scripttext += " }; ";
+
+			} else if (block[0] == "wait:elapsed:from:") {
+	
+				/*
+				scripttext += "foreverstatus["+spritenum+"][foreverstatus["+spritenum+"].length] = 'halt'; ";
+				scripttext += "waittimes["+spritenum+"][waittimes["+spritenum+"].length] = ";
+				blockHandler(block[1], true);
+				scripttext += "; wait["+spritenum+"][wait["+spritenum+"].length] = function() { ";
+				scripttext += "foreverstatus["+spritenum+"][foreverstatus["+spritenum+"].length] = 'exec'; ";	
+				extrabrackets += 1;
+				*/
+
+				scripttext += "/* wait ";
+				blockHandler(block[1], true);
+				scripttext += " seconds */";				
+
+			} else if (block[0] == "doRepeat") {
+
+
+				/*
+				if foreverlength > 1)
+				scripttext += "foreverstatus["+spritenum+"][foreverstatus["+spritenum+"].length] = 'halt'; ";
+				scripttext += "repeattimes["+spritenum+"][repeattimes["+spritenum+"].length] = Math.round(";
+				blockHandler(block[1], true);
+				scripttext += "); repeat["+spritenum+"][repeat["+spritenum+"].length] = function() { ";
+				*/
+
+				scripttext += "for (j=0;j<(";
+				blockHandler(block[1], true);
+				scripttext += ");j++){ repeatStack.push(j); ";
+
+				for (j=0;j<block[2].length;j++){
+					ifLoopVar.push(j);
+					blockHandler(block[2][j], false);
+					j = ifLoopVar.pop();
+				}
+
+
+				scripttext += "j = repeatStack.pop(); }";
+
+				document.getElementById('test2').innerHTML += "<br>repeat snapshot</br>"+scripttext+"<br>/repeat snapshot</br>"
+
+				/*
+				scripttext += "repeattimes["+spritenum+"][repeatnum] -= 1;"
+				scripttext += "if (repeattimes["+spritenum+"][repeatnum] > 0) return; "
+				scripttext += "foreverstatus["+spritenum+"][foreverstatus["+spritenum+"].length] = 'exec'; ";
+				extrabrackets += 1;
+				*/
+
+			} else if (block[0] == "doUntil") {
+
+
+				//not implemented, execute once
+
+				for (j=0;j<block[2].length;j++){
+					ifLoopVar.push(j);
+					blockHandler(block[2][j], false);
+					j = ifLoopVar.pop();
+				}
+
+
+			} else if (block[0][0] == "whenKeyPressed") {
+
+				scripttext += "keyPressScripts["
+				var charcode = scratchParseCharCode(block[0][1]);
+				scripttext += charcode+"][keyPressScripts["+charcode+"].length] = function() { ";
+				for (j=1;j<block.length;j++){
+					ifLoopVar.push(j);
+					blockHandler(block[j], false);
+					j = ifLoopVar.pop();
+				}
+				scripttext += " }; ";
+
+
+			} else if (block[0] == "doForever") {
+
+				scripttext += "foreverstatus["+spritenum+"][foreverstatus["+spritenum+"].length] = 'exec'; ";
+				scripttext += "forever["+spritenum+"][forever["+spritenum+"].length] = function() { ";
+				foreverlength += 1;
+				for (f=0;f<block[1].length;f++){
+					ifLoopVar.push(f);
+					blockHandler(block[1][f], false);
+					f = ifLoopVar.pop();
+				}
+				scripttext += " }; ";
+
+			} else if (block[0] == "doIf") {
+
+				scripttext += "if (";
+				blockHandler(block[1], true);
+				scripttext += ") { ";
+				for (j=0;j<block[2].length;j++){
+					ifLoopVar.push(j);
+					blockHandler(block[2][j], false);
+					j = ifLoopVar.pop();
+				}
+				scripttext += " } ";
+
+
+			} else if (block[0] == "doIfElse") {
+
+				scripttext += "if (";
+				blockHandler(block[1], true);
+				scripttext += " ) { ";
+				for (j=0;j<block[2].length;j++){
+					ifLoopVar.push(j);
+					blockHandler(block[2][j], false);
+					j = ifLoopVar.pop();
+				}
+				scripttext += " } else { ";
+				for (j=0;j<block[3].length;j++){
+					ifLoopVar.push(j);
+					blockHandler(block[3][j], false);
+					j = ifLoopVar.pop();
+				}
+				scripttext += " } ";
+
+			} else if (block[0] == "setVar:to:") {
+
+				scripttext += "scratchSetVar("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "changeVar:by:") {
+
+				scripttext += "scratchChangeVar("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "pointTowards:") {
+
+				scripttext += "scratchPointTowards("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "forward:") {
+
+				scripttext += "scratchStep("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "gotoSpriteOrMouse:") {
+
+				scripttext += "scratchGotoSprite("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "lookLike:") {
+
+				scripttext += "scratchSetCostume("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "append:toList:") {
+
+				scripttext += "scratchAppendList("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "deleteLine:ofList:") {
+
+				scripttext += "scratchDeleteList("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "setLine:ofList:to:") {
+
+				scripttext += "scratchReplaceList("+spritenum+", ";
+				blockHandler(block[3], true);
+				scripttext += ", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "timerReset") {
+
+				scripttext += "scratchTimeStart = new Date().getTime(); ";
+
+			} else if (block[0] == "clearPenTrails") {
+
+				scripttext += "scratchClearPen(); "
+
+			} else if (block[0] == "putPenDown") {
+
+				scripttext += "specialproperties["+spritenum+"].pendown = true; scratchPenDot("+spritenum+"); ";
+
+			} else if (block[0] == "putPenUp") {
+
+				scripttext += "specialproperties["+spritenum+"].pendown = false; ";
+
+			} else if (block[0] == "stopAllSounds") {
+
+				scripttext += "scratchStopAllSounds(); "
+
+			} else if (block[0] == "stampCostume") {
+
+				scripttext += "scratchStamp("+spritenum+"); "
+
+			} else if (block[0] == "setSizeTo:") {
+
+				scripttext += "sprites["+spritenum+"].scale = (";
+				blockHandler(block[1], true);
+				scripttext += ")/100; ";
+
+			} else if (block[0] == "gotoX:y:") {
+				
+				scripttext += "scratchGotoXY("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "changeXposBy:") {
+				
+				scripttext += "scratchChangeX("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "penColor:") {
+				
+				scripttext += "scratchPenColor("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "penSize:") {
+				
+				scripttext += "scratchPenSize("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "changeYposBy:") {
+				
+				scripttext += "scratchChangeY("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "xpos:") {
+				
+				scripttext += "scratchGotoX("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "ypos:") {
+				
+				scripttext += "scratchGotoY("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "say:") {
+				
+				scripttext += "scratchSay("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "think:") {
+				
+				scripttext += "scratchThink("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "doAsk:") {
+				
+				scripttext += "scratchAsk("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "show") {
+
+				scripttext += "sprites["+spritenum+"].visible = true; ";
+
+			} else if (block[0] == "hide") {
+
+				scripttext += "sprites["+spritenum+"].visible = false; ";
+
+
+			} else if (block[0] == "setGraphicEffect:to:") {
+
+				scripttext += "scratchGraphicEffect("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "changeGraphicEffect:by:") {
+
+				scripttext += "scratchChangeGraphicEffect("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "playSound:") {
+
+				scripttext += "scratchPlaySound("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "turnRight:") {
+
+				scripttext += "sprites["+spritenum+"].direction += ";
+				blockHandler(block[1], true);
+				scripttext += "; ";
+				scripttext += "sprites["+spritenum+"].direction = ((sprites["+spritenum+"].direction+180)%360)-180; ";
+
+
+			} else if (block[0] == "heading:") {
+
+				scripttext += "sprites["+spritenum+"].direction = ";
+				blockHandler(block[1], true);
+				scripttext += "; ";
+				scripttext += "if (sprites["+spritenum+"].direction < -180) sprites["+spritenum+"].direction += 360*Math.ceil((sprites["+spritenum+"].direction+180)/-360); ";
+				scripttext += "sprites["+spritenum+"].direction = ((sprites["+spritenum+"].direction+180)%360)-180; ";
+
+
+			} else if (block[0] == "turnLeft:") {
+
+				scripttext += "sprites["+spritenum+"].direction -= ";
+				blockHandler(block[1], true);
+				scripttext += "; ";
+				scripttext += "if (sprites["+spritenum+"].direction < -180) sprites["+spritenum+"].direction += 360*Math.ceil((sprites["+spritenum+"].direction+180)/-360); ";
+				scripttext += "sprites["+spritenum+"].direction = ((sprites["+spritenum+"].direction+180)%360)-180; ";
+			}
+		} else {
+
+			if (block[0] == "readVariable") {
+
+				scripttext += "scratchReadVar("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ")";
+
+
+			} else if (block[0] == "getLine:ofList:") {
+
+				scripttext += "scratchReadList("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+
+			} else if (block[0] == "lineCountOfList:") {
+
+				scripttext += "scratchListLength("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ")";
+
+			} else if (block[0] == "getAttribute:of:") {
+
+				scripttext += "scratchGetAttribute(";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+			} else if (block[0] == "list:contains:") {
+
+				scripttext += "scratchListContains("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+
+			} else if (block[0] == "computeFunction:of:") {
+
+				scripttext += "scratchMathFunction(";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+
+			} else if (block[0] == "=") {
+
+				scripttext += "(";
+				blockHandler(block[1], true);
+				scripttext += "== ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+			} else if (block[0] == ">") {
+
+				scripttext += "(parseFloat(";
+				blockHandler(block[1], true);
+				scripttext += ") > parseFloat(";
+				blockHandler(block[2], true);
+				scripttext += "))";
+
+			} else if (block[0] == "<") {
+
+				scripttext += "(parseFloat(";
+				blockHandler(block[1], true);
+				scripttext += ") < parseFloat(";
+				blockHandler(block[2], true);
+				scripttext += "))";
+
+			} else if (block[0] == "not") {
+
+				scripttext += "(!";
+				blockHandler(block[1], true);
+				scripttext += ")";
+
+			} else if (block[0] == "|") {
+
+				scripttext += "(";
+				blockHandler(block[1], true);
+				scripttext += "|| ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+			} else if (block[0] == "&") {
+
+				scripttext += "(";
+				blockHandler(block[1], true);
+				scripttext += "&& ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+			} else if (block[0] == "-") {
+
+				scripttext += "(";
+				blockHandler(block[1], true);
+				scripttext += " - ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+			} else if (block[0] == "+") {
+
+				scripttext += "(Number(";
+				blockHandler(block[1], true);
+				scripttext += ") + Number(";
+				blockHandler(block[2], true);
+				scripttext += "))";
+
+
+			} else if (block[0] == "concatenate:with:") {
+
+				scripttext += "(String(";
+				blockHandler(block[1], true);
+				scripttext += ") + String(";
+				blockHandler(block[2], true);
+				scripttext += "))";
+
+			} else if (block[0] == "timer") {
+
+				scripttext += "(((new Date().getTime()) - scratchTimeStart)/1000)";
+
+			} else if (block[0] == "answer") {
+
+				scripttext += "(scratchAnswer)";
+
+
+			} else if (block[0] == "*") {
+
+				scripttext += "(";
+				blockHandler(block[1], true);
+				scripttext += " * ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+			} else if (block[0] == "\\\\") {
+
+				scripttext += "scratchMod(";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+
+			} else if (block[0] == "\/") {
+
+				scripttext += "(";
+				blockHandler(block[1], true);
+				scripttext += " / ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+
+			} else if (block[0] == "rounded") {
+
+				scripttext += "Math.round(";
+				blockHandler(block[1], true);
+				scripttext += ")";
+
+			} else if (block[0] == "keyPressed:") {
+
+				scripttext += "scratchKeyDown(";
+				blockHandler(block[1], true);
+				scripttext += ")";
+
+
+			} else if (block[0] == "xpos") {
+
+				scripttext += "sprites["+spritenum+"].scratchX";
+
+			} else if (block[0] == "randomFrom:to:") {
+
+				scripttext += "scratchRandomFromTo(";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
+
+			} else if (block[0] == "touchingColor:") {
+
+				scripttext += "scratchColorCollision("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ")";
+
+			} else if (block[0] == "stringLength:") {
+
+				scripttext += "(String(";
+				blockHandler(block[1], true);
+				scripttext += ").length)";
+
+			} else if (block[0] == "letter:of:") {
+
+				scripttext += "(String(";
+				blockHandler(block[2], true);
+				scripttext += ").charAt(";
+				blockHandler(block[1], true);
+				scripttext += "-1))";
+
+			} else if (block[0] == "touching:") {
+
+				scripttext += "scratchCollisionDetect("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ")";
+
+			} else if (block[0] == "distanceTo:") {
+
+				scripttext += "scratchDistance("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ")";
+
+			} else if (block[0] == "ypos") {
+
+				scripttext += "sprites["+spritenum+"].scratchY";
+
+			} else {
+				alert(block[0]);
+			}
+		}
+	} else {
+		if (typeof block == 'string') {
+			scripttext += "'"+block+"'";
+		} else {
+			scripttext += block;
+		}
+	}
+	return;
+
+}
+
+
+function log(value) {
+	consolelog[consolelog.length] = value;
+}
+
+function stopAll() {
+
+	active = false;
+
+	scratchStopAllSounds();
+
+	specialproperties = new Array(); 
+
+	for (i=0;i<sprites.length;i++) {
+		specialproperties[i] = new Object();
+		specialproperties[i].pendown = Boolean(false);
+		specialproperties[i].pensize = 1;
+		specialproperties[i].color = "#000000";
+		specialproperties[i].say = "";
+		specialproperties[i].sayold = "";
+		specialproperties[i].saylist = new Array();
+		specialproperties[i].think = false;
+		specialproperties[i].ask = false;
+		specialproperties[i].effects = new Array();
+		specialproperties[i].effects['ghost'] = 0;
+	}
+
+	forever = new Array();
+	foreverstatus = new Array();
+	wait = new Array();
+	waittimes = new Array();
+	repeat = new Array();
+	repeattimes = new Array();
+
+	repeatStack = new Array();
+
+	for (i=0;i<sprites.length;i++) {
+		forever[i] = new Array();
+		foreverstatus[i] = new Array();
+		wait[i] = new Array();
+		waittimes[i] = new Array();
+		repeat[i] = new Array();
+		repeattimes[i] = new Array();
+	}
+
+
+}
+
+function execGreenFlag() {
+
+	active = true;
+
+	forever = new Array();
+	foreverstatus = new Array();
+	wait = new Array();
+	waittimes = new Array();
+	repeat = new Array();
+	repeattimes = new Array();
+
+	scratchTimeStart = new Date().getTime();
+
+	for (i=0;i<sprites.length;i++) {
+		forever[i] = new Array();
+		foreverstatus[i] = new Array();
+		wait[i] = new Array();
+		waittimes[i] = new Array();
+		repeat[i] = new Array();
+		repeattimes[i] = new Array();
+	}
+
+	for (spr=0;spr<greenflag.length;spr++) {
+		for (sprgf=0;sprgf<greenflag[spr].length;sprgf++) {
+			//alert("About to execute greenflag["+j+"]["+i+"].");
+			eval(String(greenflag[spr][sprgf]).substr(14, String(greenflag[spr][sprgf]).length-15));
+		}
+	}
+
+
+}
+
+function scratchEval(string) {
+	eval(String(string).substr(14, String(string).length-15));
+}
+
+function executeFrame() {
+
+	sprctx.clearRect(0, 0, 480, 360);
+
+	for (spr=0;spr<sprites.length;spr++) {
+
+		if (specialproperties[spr].pendown) {
+			penctx.lineWidth = specialproperties[spr].pensize;
+			penctx.strokeStyle = specialproperties[spr].color;
+		}
+
+
+		if (forever[spr].length > 0) {
+
+		for (sprfor=0;sprfor<forever[spr].length;sprfor++) {
+			//alert(String(forever[spr][sprfor]).substr(14, String(forever[spr][sprfor]).length-15));
+
+			if ((String(forever[spr][sprfor]).substr(0,8) == 'function') && (foreverstatus[spr][sprfor] != 'halt')) {
+				eval(String(forever[spr][sprfor]).substr(14, String(forever[spr][sprfor]).length-15));
+			}
+		}
+
+		for (sprwait=0;sprwait<wait[spr].length;sprwait++) {
+
+			if ((String(wait[spr][sprwait]).substr(0,8) == 'function') && (0 >= waittime[spr][sprwait])) {
+				eval(String(wait[spr][sprwait]).substr(14, String(wait[spr][sprwait]).length-15));
+				wait[spr].splice(sprwait, 1)
+				waittime[spr].splice(sprwait, 1)
+				sprwait -= 1;
+			}
+		}
+
+
+		for (repeatnum=0;repeatnum<repeat[spr].length;repeatnum++) {
+
+			if (String(repeat[spr][repeatnum]).substr(0,8) == 'function') {
+				eval(String(repeat[spr][repeatnum]).substr(14, String(repeat[spr][repeatnum]).length-15));
+				if (0 >= repeattime[spr][repeatnum]) {
+					repeat[spr].splice(repeatnum, 1)
+					repeattime[spr].splice(repeatnum, 1)
+					repeatnum -= 1;
+				}
+			}
+		}
+
+		}
+
+		if (sprites[spr].visible) {
+			sprctx.save();
+			var costume = sprites[spr].costumes[sprites[spr].currentCostumeIndex];
+
+			var costdir = (sprites[spr].direction-90) * Math.PI / 180;
+
+			sprctx.globalAlpha = (100-specialproperties[spr].effects['ghost'])/100;
+			sprctx.translate(sprites[spr].scratchX+240, 180-sprites[spr].scratchY);
+			sprctx.rotate(costdir);
+			sprctx.scale(sprites[spr].scale, sprites[spr].scale);
+
+			sprctx.drawImage(images[costume.baseLayerID], -costume.rotationCenterX, -costume.rotationCenterY);
+			
+
+			if (typeof costume.text != 'undefined') {
+				ctx.drawImage(images[costume.textLayerID], -costume.rotationCenterX, -costume.rotationCenterY);
+			}
+			sprctx.globalAlpha = 1;
+			sprctx.restore();
+
+
+		}
+
+	}
+
+	for (spr=0;spr<sprites.length;spr++) {
+
+		if (sprites[spr].visible) {
+
+			if (specialproperties[spr].say != "") {
+
+				if (specialproperties[spr].say != specialproperties[spr].sayold) {
+
+				specialproperties[spr].sayold = specialproperties[spr].say;
+				specialproperties[spr].saylist = new Array();
+				sprctx.font = "Bold 10pt Arial";
+				var j=0
+				var sayprevstring = "";
+				var sayprevword = "";
+				var saycurword = "";
+				var saystring = "";
+				
+				for (var i=0; i<specialproperties[spr].say.length; i++) {
+					sayprevstring = saystring;
+					saystring += specialproperties[spr].say.substr(i, 1);
+					if (specialproperties[spr].say.substr(i, 1) != " ") {
+						saycurword += specialproperties[spr].say.substr(i, 1);
+					} else {
+						sayprevword += saycurword+" "
+						saycurword = "";
+					}
+
+					saywidth = sprctx.measureText(saystring).width
+					if (saywidth > 128) {
+						if (sayprevword == "") {
+							i -= 1;
+							specialproperties[spr].saylist[j] = sayprevstring;
+							saystring = "";
+						} else {
+							specialproperties[spr].saylist[j] = sayprevword;
+							sayprevword = ""
+							saystring = saycurword;
+						}							
+						sayprevstring = "";
+						j += 1;
+					}
+				}
+				if (saystring != "") {
+					specialproperties[spr].saylist[specialproperties[spr].saylist.length] = saystring;
+				}
+
+				}
+
+				var costume = sprites[spr].costumes[sprites[spr].currentCostumeIndex];
+
+				var sayheight = 15*specialproperties[spr].saylist.length-6
+				if (specialproperties[spr].saylist.length == 1) var saylength = Math.max(45, sprctx.measureText(specialproperties[spr].saylist[0]).width);
+				else var saylength = 128;
+
+				var sayright = true;
+
+				var sayx = Math.max(8, ((sprites[spr].scratchX+240)-costume.rotationCenterX)+images[costume.baseLayerID].width+8);
+				if (sayx+saylength+8 > 480) {
+					sayright = false;
+
+					sayx = Math.max(8, Math.min(480-(saylength+8), ((sprites[spr].scratchX+240)-costume.rotationCenterX)-(saylength+8)));
+				}
+				var sayy = Math.min((360-sayheight)-32, Math.max(8, ((180-sprites[spr].scratchY)-costume.rotationCenterY)-sayheight-16));
+
+				sprctx.beginPath();
+				sprctx.moveTo(sayx, sayy-8);
+				sprctx.lineTo(sayx+saylength, sayy-8);
+				sprctx.bezierCurveTo(sayx+saylength+8, sayy-8, sayx+saylength+8, sayy, sayx+saylength+8 , sayy)			
+				sprctx.lineTo(sayx+saylength+8, sayy+sayheight);
+				sprctx.bezierCurveTo(sayx+saylength+8, sayy+sayheight+8, sayx+saylength, sayy+sayheight+8, sayx+saylength , sayy+sayheight+8)
+
+				if (!(specialproperties[spr].think)) {
+
+				if (sayright) {
+					sprctx.lineTo(sayx+40, sayy+sayheight+8);
+					sprctx.lineTo(sayx, sayy+sayheight+8+16);
+					sprctx.lineTo(sayx+5, sayy+sayheight+8);				
+				} else {
+					sprctx.lineTo(sayx+saylength-5, sayy+sayheight+8);
+					sprctx.lineTo(sayx+saylength, sayy+sayheight+8+16);
+					sprctx.lineTo(sayx+saylength-40, sayy+sayheight+8);	
+				}
+
+				}
+
+
+				sprctx.lineTo(sayx, sayy+sayheight+8);	
+				sprctx.bezierCurveTo(sayx-8, sayy+sayheight+8, sayx-8, sayy+sayheight, sayx-8, sayy+sayheight);
+				sprctx.lineTo(sayx-8, sayy);	
+				sprctx.bezierCurveTo(sayx-8, sayy-8, sayx, sayy-8, sayx, sayy-8);
+				sprctx.closePath();
+				sprctx.lineWidth = 3;
+				sprctx.strokeStyle = "#C4C4C4";
+				sprctx.fillStyle = "#FFFFFF";
+				sprctx.fill();
+				sprctx.stroke();
+
+				if (specialproperties[spr].think) {
+
+					sprctx.lineWidth = 2;
+
+					if (sayright) {
+
+					sprctx.beginPath();
+					sprctx.moveTo(sayx+6, sayy+sayheight+8+6);
+					sprctx.bezierCurveTo(sayx+6, sayy+sayheight+8+3, sayx+12, sayy+sayheight+8+3, sayx+12, sayy+sayheight+8+3);
+					sprctx.bezierCurveTo(sayx+18, sayy+sayheight+8+3, sayx+18, sayy+sayheight+8+6, sayx+18, sayy+sayheight+8+6);
+					sprctx.bezierCurveTo(sayx+18, sayy+sayheight+8+9, sayx+12, sayy+sayheight+8+9, sayx+12, sayy+sayheight+8+9);
+					sprctx.bezierCurveTo(sayx+6, sayy+sayheight+8+9, sayx+6, sayy+sayheight+8+6, sayx+6, sayy+sayheight+8+6);
+					sprctx.fill();
+					sprctx.stroke();
+
+
+					sprctx.beginPath();
+					sprctx.moveTo(sayx+2, sayy+sayheight+8+14);
+					sprctx.bezierCurveTo(sayx+2, sayy+sayheight+8+12, sayx+6, sayy+sayheight+8+12, sayx+6, sayy+sayheight+8+12);
+					sprctx.bezierCurveTo(sayx+10, sayy+sayheight+8+12, sayx+10, sayy+sayheight+8+14, sayx+10, sayy+sayheight+8+14);
+					sprctx.bezierCurveTo(sayx+10, sayy+sayheight+8+16, sayx+6, sayy+sayheight+8+16, sayx+6, sayy+sayheight+8+16);
+					sprctx.bezierCurveTo(sayx+2, sayy+sayheight+8+16, sayx+2, sayy+sayheight+8+14, sayx+2, sayy+sayheight+8+14);
+					sprctx.fill();
+					sprctx.stroke();
+
+					sprctx.beginPath();
+					sprctx.arc(sayx-2, sayy+sayheight+8+18, 1.5, 0, Math.PI*2, true); 
+					sprctx.fill();
+					sprctx.stroke();
+
+					} else {
+
+					sprctx.beginPath();
+					sprctx.moveTo((sayx+saylength)-6, sayy+sayheight+8+6);
+					sprctx.bezierCurveTo((sayx+saylength)-6, sayy+sayheight+8+3, (sayx+saylength)-12, sayy+sayheight+8+3, (sayx+saylength)-12, sayy+sayheight+8+3);
+					sprctx.bezierCurveTo((sayx+saylength)-18, sayy+sayheight+8+3, (sayx+saylength)-18, sayy+sayheight+8+6, (sayx+saylength)-18, sayy+sayheight+8+6);
+					sprctx.bezierCurveTo((sayx+saylength)-18, sayy+sayheight+8+9, (sayx+saylength)-12, sayy+sayheight+8+9, (sayx+saylength)-12, sayy+sayheight+8+9);
+					sprctx.bezierCurveTo((sayx+saylength)-6, sayy+sayheight+8+9, (sayx+saylength)-6, sayy+sayheight+8+6, (sayx+saylength)-6, sayy+sayheight+8+6);
+					sprctx.fill();
+					sprctx.stroke();
+
+
+					sprctx.beginPath();
+					sprctx.moveTo((sayx+saylength)-2, sayy+sayheight+8+14);
+					sprctx.bezierCurveTo((sayx+saylength)-2, sayy+sayheight+8+12, (sayx+saylength)-6, sayy+sayheight+8+12, (sayx+saylength)-6, sayy+sayheight+8+12);
+					sprctx.bezierCurveTo((sayx+saylength)-10, sayy+sayheight+8+12, (sayx+saylength)-10, sayy+sayheight+8+14, (sayx+saylength)-10, sayy+sayheight+8+14);
+					sprctx.bezierCurveTo((sayx+saylength)-10, sayy+sayheight+8+16, (sayx+saylength)-6, sayy+sayheight+8+16, (sayx+saylength)-6, sayy+sayheight+8+16);
+					sprctx.bezierCurveTo((sayx+saylength)-2, sayy+sayheight+8+16, (sayx+saylength)-2, sayy+sayheight+8+14, (sayx+saylength)-2, sayy+sayheight+8+14);
+					sprctx.fill();
+					sprctx.stroke();
+
+					sprctx.beginPath();
+					sprctx.arc((sayx+saylength)+2, sayy+sayheight+8+18, 1.5, 0, Math.PI*2, true); 
+					sprctx.fill();
+					sprctx.stroke();
+
+					}
+
+				}
+
+				sprctx.fillStyle = "#333333";	
+				for (var i=0; i<specialproperties[spr].saylist.length; i++) {	
+					//log(specialproperties[spr].saylist[i]);
+					var linelength = sprctx.measureText(specialproperties[spr].saylist[i]).width;
+					sprctx.fillText(specialproperties[spr].saylist[i], sayx+(saylength/2)-(linelength/2), sayy+8+i*15);
+				}
+				
+			}
+
+		}
+
+	}
+
+	ctx.clearRect(0, 0, 480, 360);
+
+	penctx.lineCap = "round";
+
+	ctx.globalAlpha = 1;
+	var costume = project.costumes[project.currentCostumeIndex];
+	ctx.drawImage(images[costume.baseLayerID], (0-costume.rotationCenterX)+240, (0-costume.rotationCenterY)+180);
+
+	ctx.drawImage(pencanvas, 0, 0);
+	ctx.drawImage(sprcanvas, 0, 0);
+
+	if (console) {
+		ctx.globalAlpha = 0.75;
+		ctx.fillStyle = "#000000";
+		ctx.fillRect(0, 0, 480, 360);
+		ctx.fillStyle = "#FFFFFF";
+		for (i=0;i<Math.min(consolelog.length, 29);i++) {
+			ctx.fillText(consolelog[(consolelog.length-Math.min(consolelog.length, 29))+i], 5, 15+i*12);
+		}
+	}
+}
+
+function update() {
+	if (focus == 1) {
+
+	focussteal.focus()
+
+	}
+
+	framectx.clearRect(0, 0, 486, 391);
+
+	if(active) executeFrame();
+	framectx.drawImage(frame, 0, 0);
+	framebuffer = ctx.getImageData(0, 0, 480, 360);
+	framectx.putImageData(framebuffer, 3, 28);
+
+	if ((MouseX > 180) && (MouseX < 206) && (MouseY < 205) && (MouseY > 184)) {
+		framectx.drawImage(greenflaga, 423, 3);	
+	} else {
+		framectx.drawImage(greenflagn, 423, 3);	
+	}
+
+	if ((MouseX > 215) && (MouseX < 235) && (MouseY < 205) && (MouseY > 184)) {
+		framectx.drawImage(stopa, 456, 3);
+	} else {
+		framectx.drawImage(stopn, 456, 3);
+	}
+
+
+	//framectx.fillText("Program Running.", 10, 10);
+
+	//framectx.fillText("("+MouseX+", "+MouseY+")", 10, 25);
+}
+
+function ScratchToJS(scripts) {
+	var scriptlist = new Array();
+	foreverlength=0;
+	greenflaglength=0;
+	ifdepth = 0;
+	extrabrackets = 0;
+	ifLoopVar = new Array();
+	for (scriptnum=0;scriptnum<scripts.length;scriptnum++) {
+		scripttext = new String();
+		blockHandler(scripts[scriptnum][2], false);
+		//for (j=0;j<extrabrackets;j++) {
+		//	scripttext += "}"
+		//}
+		scriptlist[scriptnum] = scripttext;
+		//if (scripttext.substr(0, 9) == "greenflag") alert(scripttext);
+		if (scripttext.substr(0, 9) == "greenflag") eval(scripttext);
+		if (scripttext.substr(0, 15) == "keyPressScripts") eval(scripttext);
+		
+	}
+	return scriptlist;
+}
+
+active = new Boolean(false);
+   
+var ReadFile = function(url) {
+
+	if (typeof updateInterval != 'undefined') {
+		clearInterval(updateInterval);
+	}
+
+	scratchStopAllSounds();
+
+	if (loaded != totalfiles) {
+		alert("Viewer not loaded yet");
+		return;
+	}
+
+	canvas = document.createElement("canvas");
+	canvas.width = 480;
+	canvas.height = 360;
+	ctx = canvas.getContext("2d");
+
+	pencanvas = document.createElement("canvas");
+	pencanvas.width = 480;
+	pencanvas.height = 360;
+
+	sprcanvas = document.createElement("canvas");
+	sprcanvas.width = 480;
+	sprcanvas.height = 360;
+
+	colcanvas = document.createElement("canvas");
+	colcanvas.width = 480;
+	colcanvas.height = 360;
+
+	loadedb = false;
+
+	colctx = colcanvas.getContext("2d");
+
+	sprctx = sprcanvas.getContext("2d");
+
+	penctx = pencanvas.getContext("2d");
+
+	framectx.clearRect(0, 0, 486, 391);
+
+	framectx.drawImage(frame, 0, 0);
+
+	framectx.drawImage(preload, 3, 28);
+ 
+        //var timer  = new Timer();
+        var doneReading = function (zip) {
+
+		loadedb = true; 
+
+		
+		//alert("parsing");
+		for (i=0;i<zipFile.entries.length;i++) {
+			if (zipFile.entries[i].name == "project.json") {
+				project = JSON.parse(zipFile.entries[i].extract(null, true));
+			}
+		}
+
+		images = new Array();
+		sprites = new Array();
+		specialproperties = new Array(); 
+		for (i=0;i<project.children.length;i++) {
+			if (project.children[i].indexInLibrary != undefined) {
+
+				specialproperties[sprites.length] = new Object();
+				specialproperties[sprites.length].pendown = Boolean(false);
+				specialproperties[sprites.length].pensize = 1;
+				specialproperties[sprites.length].say = "";
+				specialproperties[sprites.length].sayold = "";
+				specialproperties[sprites.length].saylist = new Array();
+				specialproperties[sprites.length].think = false;
+				specialproperties[sprites.length].ask = false;
+				specialproperties[sprites.length].color = "#000000";
+				specialproperties[sprites.length].effects = new Array();
+				specialproperties[sprites.length].effects['ghost'] = 0;
+
+				sprites[sprites.length] = project.children[i];
+
+
+			}
+		}
+		greenflag = new Array();
+
+		forever = new Array();
+		foreverstatus = new Array();
+		wait = new Array();
+		waittimes = new Array();
+		repeat = new Array();
+		repeattimes = new Array();
+
+		repeatStack = new Array();
+
+		for (i=0;i<sprites.length;i++) {
+			forever[i] = new Array();
+			foreverstatus[i] = new Array();
+			wait[i] = new Array();
+			waittimes[i] = new Array();
+			repeat[i] = new Array();
+			repeattimes[i] = new Array();
+			greenflag[i] = new Array();
+		}
+
+		keyPressScripts = new Array();
+		for (i=0;i<256;i++) {
+			keyPressScripts[i] = new Array();
+		}
+
+
+		if (typeof project.variables != 'undefined') {
+
+		globalvarIndex = new Array();
+		for (i=0;i<project.variables.length;i++) {
+			globalvarIndex[i] = project.variables[i].name;
+		}
+
+		}
+
+		if (typeof project.lists != 'undefined') {
+
+		globallistIndex = new Array();
+		for (i=0;i<project.lists.length;i++) {
+			globallistIndex[i] = project.lists[i].listName;
+		}
+
+		}
+
+		if (typeof project.sounds != 'undefined') {
+
+		globalsoundIndex = new Array();
+		for (i=0;i<project.sounds.length;i++) {
+			globalsoundIndex[i] = project.sounds[i].soundName;
+		}
+
+		}
+
+		varIndex = new Array();
+		soundIndex = new Array();
+		listIndex = new Array();
+
+		for (j=0;j<sprites.length;j++) {
+
+			varIndex[j] = new Array();
+			listIndex[j] = new Array();
+			soundIndex[j] = new Array();
+
+			if (typeof sprites[j].variables != 'undefined') {
+
+			for (i=0;i<sprites[j].variables.length;i++) {
+				varIndex[j][i] = sprites[j].variables[i].name;
+			}
+			
+			}
+
+			if (typeof sprites[j].sounds != 'undefined') {
+
+			for (i=0;i<sprites[j].sounds.length;i++) {
+				soundIndex[j][i] = sprites[j].sounds[i].soundName;
+			}
+			
+			}
+
+			if (typeof sprites[j].lists != 'undefined') {
+
+			for (i=0;i<sprites[j].lists.length;i++) {
+				listIndex[j][i] = sprites[j].lists[i].listName;
+			}
+			
+			}
+
+		}
+
+		svgs = new Array();
+		svgnums = new Array();
+		audio = new Array();
+
+		for (i=0;i<zipFile.entries.length;i++) {
+			var ext = (zipFile.entries[i].name).substr(zipFile.entries[i].name.length-3)
+			if (ext == "png") {
+				var imagenum = parseInt((zipFile.entries[i].name).substr(0, zipFile.entries[i].name.length-4));
+				var imgdata = zipFile.entries[i].extract()
+				images[imagenum] = new Image();
+				images[imagenum].src = "data:image/png;base64," + base64Encode(imgdata) //.toString() .replace(",", "");
+				document.getElementById('test2').innerHTML += "<img src='"+ images[imagenum].src +"'>"
+			} else if (ext == "jpg") {
+				var imagenum = parseInt((zipFile.entries[i].name).substr(0, zipFile.entries[i].name.length-4));
+				var imgdata = zipFile.entries[i].extract()
+				images[imagenum] = new Image();
+				images[imagenum].src = "data:image/jpeg;base64," + base64Encode(imgdata) //.toString() .replace(",", "");
+				document.getElementById('test2').innerHTML += "<img src='"+ images[imagenum].src +"'>"
+			} else if (ext == "svg") {
+				svgs[svgs.length] = zipFile.entries[i].extract(null, true);
+				svgnums[svgnums.length] = parseInt((zipFile.entries[i].name).substr(0, zipFile.entries[i].name.length-4));
+			} else if (ext == "wav") {
+				var imagenum = parseInt((zipFile.entries[i].name).substr(0, zipFile.entries[i].name.length-4));
+				var imgdata = zipFile.entries[i].extract()
+				audio[imagenum] =document.createElement("audio");
+				audio[imagenum].src = "data:audio/wav;base64," + base64Encode(imgdata) //.toString() .replace(",", "");
+				//document.getElementById('test2').innerHTML += "<audio controls='controls' autobuffer='autobuffer' autoplay='autoplay' src='"+ audio[imagenum].src +"'/></audio>"
+			}
+		}
+
+		//penctx.drawImage(images[0], 0, 0);
+		scratchClearPen();
+		spritenum = -1;
+
+		if (typeof project.scripts != 'undefined') {
+		javascriptgen = ScratchToJS(project.scripts);
+		for (j=0;j<javascriptgen.length;j++) {
+			document.getElementById('test').innerHTML += javascriptgen[j] + "<br>";
+		}
+		document.getElementById('test').innerHTML += "---stage---<br>"
+		}
+
+		spritenum = 0;
+		
+		for (i=0;i<project.children.length;i++) {
+			if (typeof project.children[i].scripts != 'undefined') {
+				javascriptgen = ScratchToJS(project.children[i].scripts);
+				for (j=0;j<javascriptgen.length;j++) {
+					document.getElementById('test').innerHTML += javascriptgen[j] + "<br>";
+				}
+				spritenum += 1;
+				document.getElementById('test').innerHTML += "---sprite "+spritenum+"---<br>"
+			}
+		}
+
+		penctx.lineCap = "round"; 
+
+		execGreenFlag();
+
+		updateInterval = setInterval(update, 33);
+		setTimeout(renderSVGs, 1);
+
+        };
+        var zipFile = new ZipFile(url, doneReading, 1);
+    };
+
+    </script>
+
+  </head>
+
+  <body style="margin:0px;">
+
+    <div id='main' class='column'>
+
+<div style="position: absolute; top: 50%; width:100%" >
+<div style="width:486px; height:420px; margin-left:auto; margin-right:auto;">
+<div style="position: relative; top: -50%;">
+
+
+	<canvas id='scratch' width='486' height='391' tabindex='1'></canvas>
+
+	<!-- <canvas id='pencanvas' width='480' height='360'></canvas> -->
+    <div style='margin-left:20px;'>
+      <select style='margin:2px 0px 12px 0px;' id="urlToLoad">
+        <option>stamptest.sb2</option>
+        <option>yay.sb2</option>
+        <option>saytest.sb2</option>
+        <option>test.sb2</option>
+        <option>yes.sb2</option>
+        <option>ContrastHQ.sb2</option>
+        <option>not fez.sb2</option>
+        <option>follow.sb2</option>
+        <option>LINE Tennis.sb2</option>
+        <option>coin.sb2</option>
+        <!-- <option>Kart.sb2</option> -->
+      </select>
+    <input style='padding:2px;'
+           onclick='ReadFile("examples/" + $("#urlToLoad").val())' type='button' title='Play' value='Play'/>
+    </div>
+<form name="f" style="position:absolute;opacity:0;">
+  <input id="focusstealer">
+</form>
+
+
+
+</div>
+</div>
+</div>
+
+<div id="test" style="display:none"> </div>
+<div id="test2" style="display:none"> </div>
+
+
+</html>
+
+
