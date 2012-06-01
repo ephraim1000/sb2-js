@@ -573,6 +573,7 @@
                     if(binStream.req.status == 200){
                         var fileContents = binStream.req.responseText;
                         binStream.fileSize = fileContents.length;
+			clearInterval(progressTrigger);
 
                         binStream.readByteAt = function(i){
                             return fileContents.charCodeAt(i) & 0xff;
