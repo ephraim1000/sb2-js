@@ -72,6 +72,29 @@ function base64Encode(bytearray){
     return result.join("");
 }
 
+function drawRoundedRectangle(targetcontext, x, y, width, height, roundedpx) { //i draw a lot of these
+
+	x += 0.5;
+	y += 0.5;
+
+	targetcontext.beginPath();
+	targetcontext.moveTo(x+roundedpx, y);
+	targetcontext.lineTo(x+width-roundedpx, y);
+	targetcontext.bezierCurveTo(x+width, y, x+width, y+roundedpx, x+width, y+roundedpx);
+	targetcontext.lineTo(x+width, y+height-roundedpx);
+	targetcontext.bezierCurveTo(x+width, y+height, x+width-roundedpx, y+height, x+width-roundedpx, y+height);
+	targetcontext.lineTo(x+roundedpx, y+height);
+	targetcontext.bezierCurveTo(x, y+height, x, y+height-roundedpx, x, y+height-roundedpx);
+	targetcontext.lineTo(x, y+roundedpx);
+	targetcontext.bezierCurveTo(x, y, x+roundedpx, y, x+roundedpx, y);
+	targetcontext.lineTo(x+roundedpx+0.1, y);
+	targetcontext.closePath();
+
+	x -= 0.5;
+	y -= 0.5;
+
+}
+
 // START SCRATCH BLOCK FUNCTIONS
 // not all blocks need to be functions but it speeds up the ones that need multiple lines of code and get slowed down by eval()
 
@@ -695,6 +718,60 @@ function scratchColorCollision(spriten, target) {
 
 }
 
+function scratchColorCollision2(spriten, target1, target2) {
+
+ 	target1 = (16777216 + target1).toString(16);
+	for (cl=0;cl<(6-target1.length);i++) {
+		target1 = "0"+target1;
+	}
+
+	var targetr = parseInt(target1.substr(0,2), 16)
+	var targetg = parseInt(target1.substr(2,2), 16)
+	var targetb = parseInt(target1.substr(4,2), 16)
+
+
+ 	target2 = (16777216 + target2).toString(16);
+	for (cl=0;cl<(6-target2.length);i++) {
+		target2 = "0"+target2;
+	}
+
+	var target2r = parseInt(target2.substr(0,2), 16)
+	var target2g = parseInt(target2.substr(2,2), 16)
+	var target2b = parseInt(target2.substr(4,2), 16)
+
+	colcanvas.width = 480;
+	colcanvas.height = 360;
+
+	var costume = project.costumes[project.currentCostumeIndex];
+	colctx.drawImage(images[costume.baseLayerID], (0-costume.rotationCenterX)+240, (0-costume.rotationCenterY)+180);
+
+	colctx.drawImage(pencanvas, 0, 0);
+	colctx.drawImage(sprcanvas, 0, 0);
+
+	var costume = sprites[spriten].costumes[sprites[spriten].currentCostumeIndex];
+
+	var colourcheck = colctx.getImageData(Math.round(240+sprites[spriten].scratchX)-costume.rotationCenterX, Math.round(180-sprites[spriten].scratchY)-costume.rotationCenterY, images[costume.baseLayerID].width, images[costume.baseLayerID].height);
+
+	colcanvas.width = images[costume.baseLayerID].width;
+	colcanvas.height = images[costume.baseLayerID].height;
+
+	colctx.drawImage(images[costume.baseLayerID], 0, 0);
+	
+	var colourcheck2 = colctx.getImageData(0, 0, colcanvas.width, colcanvas.height);
+
+	var cwidth = colcanvas.width;
+	var cheight = colcanvas.height;
+
+	for (var x=0;x<cwidth;x++) {
+		for (var y=0;y<cheight;y++) {
+			if ((colourcheck2.data[(x+y*cwidth)*4+3] != 0) && (colourcheck2.data[(x+y*cwidth)*4] == targetr) && (colourcheck2.data[(x+y*cwidth)*4+1] == targetg) && (colourcheck2.data[(x+y*cwidth)*4+2] == targetb) && (colourcheck.data[(x+y*cwidth)*4] == target2r) && (colourcheck.data[(x+y*cwidth)*4+1] == target2g) && (colourcheck.data[(x+y*cwidth)*4+2] == target2b)) return true;
+		}
+	}
+
+	return false;
+
+}
+
 // ----- SCRATCH PEN BLOCKS -----
 
 function scratchClearPen() {
@@ -731,7 +808,7 @@ function scratchStamp(spriten) {
 	var costume = sprites[spriten].costumes[sprites[spriten].currentCostumeIndex];
 	var costdir = (sprites[spriten].direction-90) * Math.PI / 180;
 			
-	penctx.translate(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
+	penctx.translate(Math.round(sprites[spriten].scratchX)+240, 180-Math.round(sprites[spriten].scratchY));
 	penctx.rotate(costdir);
 	penctx.scale(sprites[spriten].scale, sprites[spriten].scale);
 
@@ -739,7 +816,13 @@ function scratchStamp(spriten) {
 			
 
 	if (typeof costume.text != 'undefined') {
-		penctx.drawImage(images[costume.textLayerID], -costume.rotationCenterX, -costume.rotationCenterY);
+
+		if (costume.textLayerID != -1) {
+		
+			penctx.drawImage(images[costume.textLayerID], -costume.rotationCenterX, -costume.rotationCenterY);
+
+		}
+	
 	}
 	penctx.restore();
 }
@@ -797,21 +880,9 @@ function renderSVGs() {
 
 function keyPress(evt) {
 
-	/*
+
 	if (focus) {
 
-		//alert (evt.keyCode);
-	
-		for (j=0;j<keyPressScripts[evt.keyCode].length;j++) {
-			eval(String(keyPressScripts[evt.keyCode][j]).substr(14, String(keyPressScripts[evt.keyCode][j]).length-15));
-		}
-
-	}
-	*/
-}
-
-function keyDown(evt) {
-	if (focus) {
 
 		if (evt.keyCode == 96) {
 
@@ -819,6 +890,22 @@ function keyDown(evt) {
 			else console = true;
 	
 		}
+	/*
+		//alert (evt.keyCode);
+	
+		for (j=0;j<keyPressScripts[evt.keyCode].length;j++) {
+			if (String(keyPressScripts[evt.keyCode][j]).substr(0, 8) == "function") {
+				keyPressScripts[evt.keyCode][j] = String(keyPressScripts[evt.keyCode][j]).substr(14, String(keyPressScripts[evt.keyCode][j]).length-15);
+			}
+			eval(keyPressScripts[evt.keyCode][j]);
+		}
+	*/
+	}
+
+}
+
+function keyDown(evt) {
+	if (focus) {
 
 		/*
 		if ((evt.keyCode >= 37) && (evt.keyCode <= 40)) {
@@ -833,7 +920,10 @@ function keyDown(evt) {
 		keyDownArray[evt.keyCode] = true;
 
 		for (j=0;j<keyPressScripts[evt.keyCode].length;j++) {
-			eval(String(keyPressScripts[evt.keyCode][j]).substr(14, String(keyPressScripts[evt.keyCode][j]).length-15));
+			if (String(keyPressScripts[evt.keyCode][j]).substr(0, 8) == "function") {
+				keyPressScripts[evt.keyCode][j] = String(keyPressScripts[evt.keyCode][j]).substr(14, String(keyPressScripts[evt.keyCode][j]).length-15);
+			}
+			eval(keyPressScripts[evt.keyCode][j]);
 		}
 
 	}
@@ -866,7 +956,9 @@ function getMousePosition(evt) {
 
 }
 
-function alertMouse(evt) {
+function mouseDown(evt) {
+
+	scratchMouseDown = true;
 
 	if (loadedb) {
 
@@ -882,7 +974,15 @@ function alertMouse(evt) {
 	}
 }
 
+function mouseUp(evt) {
+
+	scratchMouseDown = false;
+
+}
+
 function init() {
+
+	scratchMouseDown = false;
 
 	console = false;
 	consolelog = new Array();
@@ -926,7 +1026,8 @@ function init() {
 		focus = 1;
 	};
 
-	framecanvas.onmousedown = alertMouse;
+	framecanvas.onmousedown = mouseDown;
+	document.onmouseup = mouseUp;
 	framecanvas.onmousemove = getMousePosition;
 
 	frame = new Image();
@@ -1016,12 +1117,15 @@ function blockHandler(block, reporter) {
 				blockHandler(block[1], true);
 				scripttext += ");j++){ repeatStack.push(j); ";
 
+				if (block[2] != null) {
+
 				for (j=0;j<block[2].length;j++){
 					ifLoopVar.push(j);
 					blockHandler(block[2][j], false);
 					j = ifLoopVar.pop();
 				}
 
+				}
 
 				scripttext += "j = repeatStack.pop(); }";
 
@@ -1504,6 +1608,14 @@ function blockHandler(block, reporter) {
 				blockHandler(block[1], true);
 				scripttext += ")";
 
+			} else if (block[0] == "color:sees:") {
+
+				scripttext += "scratchColorCollision2("+spritenum+", ";
+				blockHandler(block[1], true);
+				scripttext += ", ";
+				blockHandler(block[2], true);
+				scripttext += ")";
+
 			} else if (block[0] == "stringLength:") {
 
 				scripttext += "(String(";
@@ -1636,9 +1748,135 @@ function scratchEval(string) {
 function executeFrame() {
 
 	sprctx.clearRect(0, 0, 480, 360);
+	spr = 0;
 
-	for (spr=0;spr<sprites.length;spr++) {
+	for (ent=0;ent<project.children.length;ent++) { //spr=0;sprites.length;spr++
 
+		if (project.children[ent].indexInLibrary == undefined) {
+
+		if (project.children[ent].visible) {
+
+		if (project.children[ent].cmd == "getVar:") { 
+
+			sprctx.lineWidth = 1;
+
+			resid = -1;
+
+			if (project.children[ent].target == "Stage") {
+				var vardisplay = scratchReadVar(-1, project.children[ent].param);
+			} else {
+				for (i=0;i<sprites.length;i++) {
+					if (sprites[i].objName == project.children[ent].target) resid = i;
+				}
+				var vardisplay = scratchReadVar(resid, project.children[ent].param);
+			}
+
+			var varname = project.children[ent].label;
+
+			if (project.children[ent].mode == 2) {
+
+				sprctx.font = "Bold 12pt Arial";
+				var valuelength = Math.max(36, sprctx.measureText(vardisplay).width);
+
+				drawRoundedRectangle(sprctx, project.children[ent].x, project.children[ent].y, valuelength+12, 21, 7);
+				sprctx.fillStyle = "#FFFFFF";
+				sprctx.strokeStyle = "#FF6600";
+				sprctx.fill();
+				sprctx.stroke();
+
+				drawRoundedRectangle(sprctx, project.children[ent].x-2, project.children[ent].y-2, valuelength+16, 25, 9);
+				sprctx.strokeStyle = "#FFCC00";
+				sprctx.stroke();
+
+				sprctx.fillStyle = "#FF6600";
+				sprctx.fillText(vardisplay, project.children[ent].x+6+valuelength/2-sprctx.measureText(vardisplay).width/2, project.children[ent].y+17);
+
+			} else if ((project.children[ent].mode == 1) || (project.children[ent].mode == 3)) {
+
+				sprctx.font = "Bold 10pt Arial";
+				var valuelength = Math.max(24, sprctx.measureText(vardisplay).width);
+				var namelength = sprctx.measureText(varname).width
+
+				if (project.children[ent].mode == 1) var varheight = 21;
+				else var varheight = 32;
+
+				drawRoundedRectangle(sprctx, project.children[ent].x, project.children[ent].y, valuelength+16+namelength+10+4, varheight, 7);
+				sprctx.fillStyle = "#FFFFFF";
+				sprctx.strokeStyle = "#878787";
+				sprctx.fill();
+				sprctx.stroke();
+
+				drawRoundedRectangle(sprctx, project.children[ent].x+namelength+10, project.children[ent].y+3, valuelength+16, 15, 4);
+				sprctx.strokeStyle = "#FFCC00";
+				sprctx.fill();
+				sprctx.stroke();
+
+				drawRoundedRectangle(sprctx, project.children[ent].x-2, project.children[ent].y-2, valuelength+16+namelength+10+4+4, varheight+4, 9);
+				sprctx.strokeStyle = "#E2E2E2";
+				sprctx.stroke();
+
+				sprctx.fillStyle = "#333333";
+				sprctx.fillText(varname, project.children[ent].x+5, project.children[ent].y+15);
+
+				sprctx.fillStyle = "#FF6600";
+				sprctx.fillText(vardisplay, project.children[ent].x+namelength+10+8+valuelength/2-(sprctx.measureText(vardisplay).width)/2, project.children[ent].y+15);
+
+				if (project.children[ent].mode == 3) {
+					drawRoundedRectangle(sprctx, project.children[ent].x+6, project.children[ent].y+22, (valuelength+16+namelength+10+4)-12, 6, 3);
+					sprctx.fillStyle = "#CCCCCC";
+					sprctx.strokeStyle = "#999999";
+					sprctx.fill();
+					sprctx.stroke();
+
+					var scrollwidth = (valuelength+16+namelength+10+4)-17;
+
+					if (scratchMouseDown && (MouseX+240 >= (project.children[ent].x+6)) && (MouseX+240 <= (project.children[ent].x+6+(valuelength+16+namelength+10+4)-12)) && (180-MouseY >= (project.children[ent].y+22)) && (180-MouseY <= (project.children[ent].y+28))) {
+						// if anyone has a less stupid way to check this be my guest
+
+						var decimalplaces = 0;
+						var afterpoint = false;
+						for (i=0;i<String(project.children[ent].sliderMin).length;i++) {
+							if (String(project.children[ent].sliderMin).charAt(i) == ".") afterpoint = true;
+							else if (afterpoint) decimalplaces += 1;
+						}
+
+						var decimalplaces2 = 0;
+						afterpoint = false;
+						for (i=0;i<String(project.children[ent].sliderMax).length;i++) {
+							if (String(project.children[ent].sliderMax).charAt(i) == ".") afterpoint = true;
+							else if (afterpoint) decimalplaces2 += 1;
+						}
+
+						decimalplaces = Math.max(decimalplaces, decimalplaces2);
+
+						vardisplay = Math.max(Math.min(project.children[ent].sliderMin+((MouseX+240 - (project.children[ent].x+9))/scrollwidth)*(project.children[ent].sliderMax - project.children[ent].sliderMin), project.children[ent].sliderMax), project.children[ent].sliderMin);
+						vardisplay = vardisplay.toFixed(decimalplaces)
+						scratchSetVar(resid, project.children[ent].param, vardisplay);
+					}
+
+					var scrollfactor = (Math.max(Math.min(parseFloat(vardisplay), project.children[ent].sliderMax), project.children[ent].sliderMin) - project.children[ent].sliderMin) / (project.children[ent].sliderMax - project.children[ent].sliderMin)
+
+					sprctx.beginPath();
+					sprctx.arc(project.children[ent].x+8.5+(scrollwidth*scrollfactor), project.children[ent].y+25.5, 4.5, 0, Math.PI*2, true); 
+					sprctx.fillStyle = "#FFFFFF";
+					sprctx.strokeStyle = "#333333";
+					sprctx.fill();
+					sprctx.stroke();
+
+					sprctx.beginPath();
+					sprctx.arc(project.children[ent].x+8.5+(scrollwidth*scrollfactor), project.children[ent].y+25.5, 2.5, 0, Math.PI*2, true); 
+					sprctx.strokeStyle = "#CCCCCC";
+					sprctx.stroke();
+				}
+
+			}
+
+		}
+
+		}
+
+		} else {
+		
 		if (specialproperties[spr].pendown) {
 			penctx.lineWidth = specialproperties[spr].pensize;
 			penctx.strokeStyle = specialproperties[spr].color;
@@ -1650,9 +1888,12 @@ function executeFrame() {
 		for (sprfor=0;sprfor<forever[spr].length;sprfor++) {
 			//alert(String(forever[spr][sprfor]).substr(14, String(forever[spr][sprfor]).length-15));
 
-			if ((String(forever[spr][sprfor]).substr(0,8) == 'function') && (foreverstatus[spr][sprfor] != 'halt')) {
-				eval(String(forever[spr][sprfor]).substr(14, String(forever[spr][sprfor]).length-15));
+
+			if (String(forever[spr][sprfor]).substr(0,8) == 'function') { // && (foreverstatus[spr][sprfor] != 'halt')) 
+				forever[spr][sprfor] = String(forever[spr][sprfor]).substr(14, String(forever[spr][sprfor]).length-15);
 			}
+
+			eval(forever[spr][sprfor]);
 		}
 
 		for (sprwait=0;sprwait<wait[spr].length;sprwait++) {
@@ -1695,13 +1936,20 @@ function executeFrame() {
 			
 
 			if (typeof costume.text != 'undefined') {
-				ctx.drawImage(images[costume.textLayerID], -costume.rotationCenterX, -costume.rotationCenterY);
+
+				if (costume.textLayerID != -1) {
+					ctx.drawImage(images[costume.textLayerID], -costume.rotationCenterX, -costume.rotationCenterY);
+				}
+		
 			}
 			sprctx.globalAlpha = 1;
 			sprctx.restore();
 
 
 		}
+		spr += 1;
+
+	}
 
 	}
 
@@ -1996,7 +2244,7 @@ var ReadFile = function(url) {
 	framectx.drawImage(frame, 0, 0);
 
 	framectx.drawImage(preload, 3, 28);
- 
+
         //var timer  = new Timer();
         var doneReading = function (zip) {
 
@@ -2211,12 +2459,14 @@ var ReadFile = function(url) {
         <option>yay.sb2</option>
         <option>saytest.sb2</option>
         <option>test.sb2</option>
+        <option>line.sb2</option>
         <option>yes.sb2</option>
         <option>ContrastHQ.sb2</option>
         <option>not fez.sb2</option>
         <option>follow.sb2</option>
         <option>LINE Tennis.sb2</option>
         <option>coin.sb2</option>
+        <option>variabletest.sb2</option>
         <!-- <option>Kart.sb2</option> -->
       </select>
     <input style='padding:2px;'
