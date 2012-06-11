@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+  <head>
+    <title>sb2.js</title>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8" />
+<meta name="viewport" 
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-touch-fullscreen" content="yes" />
+
+<link rel="apple-touch-icon-precomposed" href="editorimg/icon.png"/>  
+
+    <script type="text/javascript" src='script/ZipFile.complete.js'></script>
+
+    <script type="text/javascript" src="http://canvg.googlecode.com/svn/trunk/rgbcolor.js"></script> 
+    <script type="text/javascript" src="http://canvg.googlecode.com/svn/trunk/canvg.js"></script> 
+
+    <script type="text/javascript" src='http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js'></script>
+
+    <script type="text/javascript" src='http://ajax.googleapis.com/ajax/libs/jqueryui/1.7.2/jquery-ui.min.js'></script>
+    <script type="text/javascript" src="script/sb2.js"></script> 
+
+<style type="text/css">
+
+	html, body {
+		margin: 0px; 
+		width: 100%; 
+		height: 100%;
+		font-family: Verdana, Sans-Serif;
+	}
+
+	#topBar {
+		padding-left:100px;
+		height: 30px; 
+		background-color: #FF9900;
+		background-image: url('editorimg/logo.png');
+		background-repeat: no-repeat;
+	}
+
+
+	#maincontainer {
+		padding:5px;
+	}
+
+	#baritem {
+		margin-left: 8px;
+		padding: 4px 10px;
+		font: bold 18px Verdana;
+		height: 22px;
+		color: #FFFFFF;
+		display: inline-block;
+
+		background: -moz-linear-gradient(top,  rgba(255,204,0,0.25) 0%, rgba(255,204,0,0.5) 100%); /* FF3.6+ */
+		background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,rgba(255,204,0,0.25)), color-stop(100%,rgba(255,204,0,0.5))); /* Chrome,Safari4+ */
+		background: -webkit-linear-gradient(top,  rgba(255,204,0,0.25) 0%,rgba(255,204,0,0.5) 100%); /* Chrome10+,Safari5.1+ */
+		background: -o-linear-gradient(top,  rgba(255,204,0,0.25) 0%,rgba(255,204,0,0.5) 100%); /* Opera 11.10+ */
+		background: -ms-linear-gradient(top,  rgba(255,204,0,0.25) 0%,rgba(255,204,0,0.5) 100%); /* IE10+ */
+		background: linear-gradient(top,  rgba(255,204,0,0.25) 0%,rgba(255,204,0,0.5) 100%); /* W3C */
+		filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#40ffcc00', endColorstr='#80ffcc00',GradientType=0 ); /* IE6-9 */
+
+	}
+
+	#leftcontainer {
+		float:left;
+		width: 486px;
+	}
+
+	#rightcontainer {
+		margin-left: 498px;
+	}
+
+	.round {
+		-webkit-border-radius: 3px;
+		-moz-border-radius: 3px;
+		border-radius: 3px;
+	}
+
+	#spritesbox {
+		height: 75px;
+		margin-top: 12px;
+		width: 484px;
+		border-style: solid;
+		border-width: 1px;
+		border-color: #FF9900;
+		background-color: white;
+	}
+
+	#sprites {
+		height: 65px;
+		margin-top: 1px;
+		padding: 3px;
+		width: 354px;
+		border-style: solid;
+		border-width: 1px;
+		border-color: #FFCC01;
+		background-image: url('editorimg/diagBG.png');
+		display: inline-block;
+	}
+
+	#paletteContainer {
+		margin-top: 12px;
+		width: 100%;
+	}
+
+	#palettebox {
+		width: 480px;
+		padding: 2px;
+		border-style: solid;
+		border-top: none;
+		border-width: 1px;
+		border-color: #FF9900;
+		background-color: white;
+	}
+
+	#typeSpacer {
+		//border-bottom-style: solid;
+		//border-bottom-width: 1px;
+		//border-bottom-color: #FF9900;
+		background-image: url('editorimg/line.png');
+		background-repeat: repeat-x;
+		background-position: bottom;
+	}
+
+	#palette {
+		background-image: url('editorimg/scriptbg.png');
+		box-shadow: 4.5px 4.5px 13px #C44000 inset;
+	}
+
+	#scriptbox {
+		padding: 1px;
+		border-style: solid;
+		border-top: none;
+		border-width: 1px;
+		border-color: #9B9B9B;
+		background-color: white;
+	}
+
+	#scripts {
+		background-image: url('editorimg/diagBG2.png');
+		box-shadow: 2.5px 2.5px 20px #666666 inset;
+	}
+
+	.bottomRound {
+		-webkit-border-bottom-right-radius: 3px;
+		-webkit-border-bottom-left-radius: 3px;
+		-moz-border-radius-bottomright: 3px;
+		-moz-border-radius-bottomleft: 3px;
+		border-bottom-right-radius: 3px;
+		border-bottom-left-radius: 3px;
+	}
+
+	.sprite {
+		padding: 5px;
+		height: 53px;
+		width: 53px;
+		border-style: solid;
+		border-width: 1px;
+		border-color: #CCCCCC;
+		margin-right: 15px;
+	}
+
+	.sprimg {
+		max-width: 50px;
+		max-height: 40px;
+		position: relative; //centered by the javascript
+		box-shadow: 0 0 6px #000000;
+	}
+
+	.sprimgcontainer {
+		width:50px;
+		height:40px;
+	}
+
+	.spritetext {
+		text-align: center;
+		font: 10px Arial;
+		color: #666666;
+	}
+
+
+</style>
+
+	<script>
+	autoLoad = "examples/MarioBros.sb2";
+
+	function fixHeights() {
+		var hfixer = document.getElementById('palette')
+		hfixer.style.height = (window.innerHeight-588)+"px";
+		var hfixer = document.getElementById('scripts')
+		hfixer.style.height = (window.innerHeight-65)+"px";
+	}
+
+	document.addEventListener('touchstart', function(e){ e.preventDefault(); }); 
+
+	window.onresize = function(event) {
+		fixHeights();
+	}
+
+	document.addEventListener("DOMContentLoaded", fixHeights); 
+
+	</script>
+
+  </head>
+
+<body>
+
+<div id="topBar">
+
+<div id="baritem">File</div><div id="baritem">Options</div><div id="baritem">Share</div>
+
+</div>
+
+	<div id="maincontainer">
+
+	<div id="leftcontainer">
+
+		<canvas id='scratch' width='486' height='391' tabindex='1'></canvas>
+
+		<div id="spritesbox" class="round">
+		
+			<img src="editorimg/leftArrow.png"><div id="sprites" class="round">
+			
+			<div class="round sprite"><div class="sprimgcontainer"></div><div style="spritetext">Stage</div></div>			
+
+			</div><img src="editorimg/rightArrow.png">
+
+		</div>
+
+		<div id="paletteContainer">
+			<div id="typeSpacer"><img src="editorimg/placeholderTypeA.png"><img src="editorimg/placeholderTypeNA.png"><img src="editorimg/placeholderTypeNA.png"><img src="editorimg/placeholderTypeNA.png"><img src="editorimg/placeholderTypeNA.png"><img src="editorimg/placeholderTypeNA.png"><img src="editorimg/placeholderTypeNA.png"><img src="editorimg/placeholderTypeNA.png"></div>
+			<div id="palettebox" class="bottomRound">
+				<div id="palette"></div>				
+			</div>
+		</div>
+
+	</div>
+
+	<div id="rightcontainer">
+
+	<div id="typeSpacer" style="background-image: url('editorimg/line2.png');"><img src="editorimg/scriptTabA.png"><img src="editorimg/costumeTabNA.png"><img src="editorimg/soundTabNA.png"></div>
+
+	<div id="scriptbox" class="bottomRound">
+	<div id="scripts"> </div>
+	</div>
+
+	</div>
+
+	</div>
+
+
+</body>
+
+</html>
+
+
