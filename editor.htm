@@ -97,6 +97,8 @@
 		border-color: #FFCC01;
 		background-image: url('editorimg/diagBG.png');
 		display: inline-block;
+		overflow: hidden;
+		position: relative;
 	}
 
 	#paletteContainer {
@@ -158,25 +160,31 @@
 		border-style: solid;
 		border-width: 1px;
 		border-color: #CCCCCC;
-		margin-right: 15px;
+		margin-right: 9px;
+		display: inline-block;
+		position: absolute;
 	}
 
 	.sprimg {
 		max-width: 50px;
 		max-height: 40px;
-		position: relative; //centered by the javascript
+		position: absolute;
+		background-color: #FFFFFF;
 		box-shadow: 0 0 6px #000000;
 	}
 
 	.sprimgcontainer {
-		width:50px;
+		width:53px;
 		height:40px;
 	}
 
 	.spritetext {
 		text-align: center;
 		font: 10px Arial;
+		width: 53px;
+		position: absolute;
 		color: #666666;
+		margin-top: 2px;
 	}
 
 
@@ -184,6 +192,27 @@
 
 	<script>
 	autoLoad = "examples/MarioBros.sb2";
+
+	function generateSpriteContainers() {
+		var spritesDiv = document.getElementById('sprites')
+
+		var libraryIndex = new Array(sprites.length);
+
+		for (i=0; i<sprites.length; i++) {
+			libraryIndex[sprites[i].indexInLibrary-1] = i;
+		}
+
+		for (j=0; j<sprites.length; j++) {
+			i = libraryIndex[j];
+			spritesDiv.innerHTML += '<div class="round sprite" style="left:'+(3+(j*72))+'px"><div class="sprimgcontainer"><img src="editorimg/132.png" class="sprimg"></img></div><div class="spritetext">'+sprites[i].objName+'</div></div>'
+		}
+	}
+
+	function editorInit() {
+
+		generateSpriteContainers();
+		
+	}
 
 	function fixHeights() {
 		var hfixer = document.getElementById('palette')
@@ -220,9 +249,7 @@
 
 		<div id="spritesbox" class="round">
 		
-			<img src="editorimg/leftArrow.png"><div id="sprites" class="round">
-			
-			<div class="round sprite"><div class="sprimgcontainer"></div><div style="spritetext">Stage</div></div>			
+			<img src="editorimg/leftArrow.png"><div id="sprites" class="round">			
 
 			</div><img src="editorimg/rightArrow.png">
 

@@ -81,7 +81,8 @@ function computeHue(r, g, b){
 	r /= 255
 	g /= 255
 	b /= 255
-	var compval = Math.atan2(2*(r-g-b), Math.pow((g-b), 1/3))+Math.PI;
+	var compval = Math.atan2((g-b)*(1.7320508075688772935274463415059), 2*r-g-b);
+
 	if (isNaN(compval)) return 0;
 	else return compval;
 }
@@ -762,6 +763,7 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 		if (scripts[spriten][5][sid] != undefined) {
 			for (i=0;i<executionQueue[spriten].length;i++) {
 				if ((type == executionQueue[spriten][i].topLevelType) && (sid == executionQueue[spriten][i].topLevelSID) && (sid != executionQueue[spriten][i].scriptID)) executionQueue[spriten].splice(i, 1);
+				if ((spr==spriten) && (q > i)) q-=1;
 			}
 
 			repeatstackn = repeatStacks[spriten].length;
@@ -1403,7 +1405,7 @@ function scratchDistance(spriten, name) {
 
 	for (i=0;i<sprites.length;i++) {
 		if (sprites[i].objName == name) {
-			return Math.sqrt((sprites[spriten].scratchX - sprites[i].scratchX)^2 + (sprites[spriten].scratchY - sprites[i].scratchY)^2);
+			return Math.sqrt(Math.pow((sprites[spriten].scratchX - sprites[i].scratchX), 2) + Math.pow((sprites[spriten].scratchY - sprites[i].scratchY), 2));
 		}
 	}
 }
@@ -1416,9 +1418,11 @@ function scratchPointTowards(spriten, name) {
 
 	for (i=0;i<sprites.length;i++) {
 		if (sprites[i].objName == name) {
-			sprites[spriten].direction = (Math.atan2(sprites[i].scratchX - sprites[spriten].scratchX, sprites[8].scratchY - sprites[spriten].scratchY)/Math.PI)*180;
+			sprites[spriten].direction = (Math.atan2(sprites[i].scratchX - sprites[spriten].scratchX, sprites[i].scratchY - sprites[spriten].scratchY)/Math.PI)*180;
 		}
 	}
+
+	if (isNaN(sprites[spriten].direction)) { sprites[spriten].direction = 0; return; }
 
 	if (sprites[spriten].direction < -180) sprites[spriten].direction += 360*Math.ceil((sprites[spriten].direction+180)/-360);
 	sprites[spriten].direction = ((sprites[spriten].direction+180)%360)-180;
@@ -1745,6 +1749,32 @@ function scratchColorCollision(spriten, target) {
 
 }
 
+function rotatedBoundsCalculation(destsprite, costume) {
+
+		var SprCornersX = new Array();
+		var SprCornersY = new Array();
+
+		SprCornersX.push(-costume.rotationCenterX);
+		SprCornersX.push(-costume.rotationCenterX);
+		SprCornersX.push(images[costume.baseLayerID].width-costume.rotationCenterX);
+		SprCornersX.push(images[costume.baseLayerID].width-costume.rotationCenterX);
+
+		SprCornersY.push(costume.rotationCenterY);
+		SprCornersY.push(costume.rotationCenterY-images[costume.baseLayerID].height);
+		SprCornersY.push(costume.rotationCenterY-images[costume.baseLayerID].height);
+		SprCornersY.push(costume.rotationCenterY);
+
+		SprCornersXRot = new Array();
+		SprCornersYRot = new Array();
+
+		var radians = (sprites[destsprite].direction-90)*Math.PI/180;
+
+		for (rot=0; rot<4; rot++) {
+			SprCornersXRot.push(Math.cos(radians)*SprCornersX[rot]+Math.sin(radians)*SprCornersY[rot]);
+			SprCornersYRot.push(Math.cos(radians)*SprCornersY[rot]+Math.sin(radians)*SprCornersX[rot]);
+		}
+}
+
 function scratchCollisionDetect(spriten, name) {
 	if (!(sprites[spriten].visible)) return false;
 
@@ -1796,7 +1826,8 @@ function scratchCollisionDetect(spriten, name) {
 
 	if (!(sprites[othersprite].visible)) return false;
 	
-	var costume = sprites[spriten].costumes[sprites[spriten].currentCostumeIndex];
+	costume = sprites[spriten].costumes[sprites[spriten].currentCostumeIndex];
+
 	if (sprites[spriten].rotationStyle == "leftRight") {
 		if (sprites[spriten].direction >= 0) {
 
@@ -1809,10 +1840,18 @@ function scratchCollisionDetect(spriten, name) {
 
 		var y1 = Math.round((180-sprites[spriten].scratchY)-costume.rotationCenterY)
 		var ym1 = y1+images[costume.baseLayerID].height;
-
 		var xm1 = Math.round((sprites[spriten].scratchX+240)+costume.rotationCenterX)
 		var x1 = xm1-images[costume.baseLayerID].width;
 		}
+	} else if (sprites[spriten].rotationStyle == "normal") {
+
+		rotatedBoundsCalculation(spriten, costume);
+
+		var x1 = sprites[spriten].scratchX+240+Math.min(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
+		var y1 = 180-(sprites[spriten].scratchY+Math.max(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
+		var xm1 = sprites[spriten].scratchX+240+Math.max(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
+		var ym1 = 180-(sprites[spriten].scratchY+Math.min(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
+
 	} else {
 		var x1 = Math.round((sprites[spriten].scratchX+240)-costume.rotationCenterX)
 		var y1 = Math.round((180-sprites[spriten].scratchY)-costume.rotationCenterY)
@@ -1821,18 +1860,46 @@ function scratchCollisionDetect(spriten, name) {
 	}
 
 
-	var costume = sprites[othersprite].costumes[sprites[othersprite].currentCostumeIndex];
-	var x2 = Math.round((sprites[othersprite].scratchX+240)-costume.rotationCenterX)
-	var y2 = Math.round((180-sprites[othersprite].scratchY)-costume.rotationCenterY)
-	var xm2 = x2+images[costume.baseLayerID].width;
-	var ym2 = y2+images[costume.baseLayerID].height;
+	costume = sprites[othersprite].costumes[sprites[othersprite].currentCostumeIndex];
+
+	if (sprites[othersprite].rotationStyle == "leftRight") {
+		if (sprites[othersprite].direction >= 0) {
+
+		var x2 = Math.round((sprites[othersprite].scratchX+240)-costume.rotationCenterX)
+		var y2 = Math.round((180-sprites[othersprite].scratchY)-costume.rotationCenterY)
+		var xm2 = x2+images[costume.baseLayerID].width;
+		var ym2 = y2+images[costume.baseLayerID].height;
+
+		} else {
+
+		var y2 = Math.round((180-sprites[othersprite].scratchY)-costume.rotationCenterY)
+		var ym2 = y2+images[costume.baseLayerID].height;
+		var xm2 = Math.round((sprites[othersprite].scratchX+240)+costume.rotationCenterX)
+		var x2 = xm2-images[costume.baseLayerID].width;
+		}
+	} else if (sprites[othersprite].rotationStyle == "normal") {
+
+		rotatedBoundsCalculation(othersprite, costume);
+
+		var x2 = sprites[othersprite].scratchX+240+Math.min(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
+		var y2 = 180-(sprites[othersprite].scratchY+Math.max(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
+		var xm2 = sprites[othersprite].scratchX+240+Math.max(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
+		var ym2 = 180-(sprites[othersprite].scratchY+Math.min(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
+
+	} else {
+		var x2 = Math.round((sprites[othersprite].scratchX+240)-costume.rotationCenterX)
+		var y2 = Math.round((180-sprites[othersprite].scratchY)-costume.rotationCenterY)
+		var xm2 = x2+images[costume.baseLayerID].width;
+		var ym2 = y2+images[costume.baseLayerID].height;
+	}
+
 
 	if ((x1 > xm2) || (x2 > xm1) || (y1 > ym2) || (y2 > ym1)) return false;
 
-	var xstart = Math.max(x1, x2);
-	var xend = Math.min(xm1, xm2);
-	var ystart = Math.max(y1, y2);
-	var yend = Math.min(ym1, ym2);
+	var xstart = Math.max(x1, x2, 0);
+	var xend = Math.min(xm1, xm2, 480);
+	var ystart = Math.max(y1, y2, 0);
+	var yend = Math.min(ym1, ym2, 360);
 
 	colcanvas.width = 480;
 	colcanvas.height = 360;
@@ -1841,11 +1908,7 @@ function scratchCollisionDetect(spriten, name) {
 
 	scratchDrawSprite(colctx, spriten, true);
 
-	try {
 	var colourcheck = colctx.getImageData(xstart, ystart, Math.max(1, xend-xstart), Math.max(1, yend-ystart));
-	} catch(err) {
-		alert(sprites[spriten].scratchX)
-	}
 
 
 	colctx.clearRect(0, 0, 480, 360);	
@@ -1856,10 +1919,14 @@ function scratchCollisionDetect(spriten, name) {
 
 	var cwidth = Math.max(1, xend-xstart);
 	var cheight = Math.max(1, yend-ystart);
+	var index = 3;
+	var data1 = colourcheck.data;
+	var data2 = colourcheck2.data;
 
-	for (var x=0;x<cwidth;x++) {
-		for (var y=0;y<cheight;y++) {
-			if ((colourcheck.data[(x+y*cwidth)*4+3] != 0) && (colourcheck2.data[(x+y*cwidth)*4+3] != 0)) return true;
+	for (var y=0;y<cheight;y++) {
+		for (var x=0;x<cwidth;x++) {
+			if ((data1[index] > 0) && (data2[index] > 0)) { return true; } ;
+			index += 4;
 		}
 	}
 
@@ -1986,6 +2053,7 @@ function scratchSetPenColor(spriten, value) {
 	specialproperties[spriten].penhue = scratchMod(specialproperties[spriten].penhue, 360);
 	specialproperties[spriten].pensaturation = 100;
 	specialproperties[spriten].color = "hsl("+specialproperties[spriten].penhue+", "+specialproperties[spriten].pensaturation+"%, "+specialproperties[spriten].penlightness+"%)";
+	penctx.strokeStyle = specialproperties[spriten].color;
 
 }
 
@@ -1994,6 +2062,7 @@ function scratchSetPenShade(spriten, value) {
 	specialproperties[spriten].penlightness = Math.min(Math.max(specialproperties[spriten].penlightness, 0), 100);
 	specialproperties[spriten].pensaturation = 100;
 	specialproperties[spriten].color = "hsl("+specialproperties[spriten].penhue+", "+specialproperties[spriten].pensaturation+"%, "+specialproperties[spriten].penlightness+"%)";
+	penctx.strokeStyle = specialproperties[spriten].color;
 }
 
 function scratchChangePenColor(spriten, value) {
@@ -2001,6 +2070,7 @@ function scratchChangePenColor(spriten, value) {
 	specialproperties[spriten].penhue = scratchMod(specialproperties[spriten].penhue, 360);
 	specialproperties[spriten].pensaturation = 100;
 	specialproperties[spriten].color = "hsl("+specialproperties[spriten].penhue+", "+specialproperties[spriten].pensaturation+"%, "+specialproperties[spriten].penlightness+"%)";
+	penctx.strokeStyle = specialproperties[spriten].color;
 }
 
 function scratchChangePenShade(spriten, value) {
@@ -2008,6 +2078,7 @@ function scratchChangePenShade(spriten, value) {
 	specialproperties[spriten].penlightness = Math.min(Math.max(specialproperties[spriten].penlightness, 0), 100);
 	specialproperties[spriten].pensaturation = 100;
 	specialproperties[spriten].color = "hsl("+specialproperties[spriten].penhue+", "+specialproperties[spriten].pensaturation+"%, "+specialproperties[spriten].penlightness+"%)";
+	penctx.strokeStyle = specialproperties[spriten].color;
 }
 
 function scratchPenColor(spriten, value) {
@@ -2299,7 +2370,7 @@ function IncLoad() {
 	loaded += 1;
 	if (loaded == totalfiles) {
 		framectx.drawImage(frame, 0, 0)
-		if (autoLoad != undefined) ReadFile(autoLoad);
+		if (typeof autoLoad != 'undefined') ReadFile(autoLoad);
 	}
 }
 
@@ -2308,15 +2379,20 @@ document.addEventListener("DOMContentLoaded", init);
 
 function renderSVGs() {
 
-	svgcanvas = document.createElement("canvas");
-	svgctx = canvas.getContext("2d");
-
 		for (i=0;i<svgs.length;i++) {
+
+			svgcanvas = document.createElement("canvas");
+			svgctx = canvas.getContext("2d");
+
 			var imagenum = svgnums[i];
 			canvg(svgcanvas, svgs[i]);
 			images[imagenum] = new Image();
 			images[imagenum].src = svgcanvas.toDataURL()
 		}
+
+	execGreenFlag();
+
+	updateInterval = setInterval(update, 33);
 
 }
 
@@ -2357,7 +2433,7 @@ function keyPress(evt) {
 }
 
 function keyDown(evt) {
-	if (focus) {
+	if (focus && loadedb) {
 
 		if (evt.keyCode == 16) shiftKey = true;
 
@@ -2413,10 +2489,14 @@ function keyDown(evt) {
 function touchKeyDown(keyc) {
 		keyDownArray[keyc] = true;
 
+		if (loadedb) {
+
 		for (spr=0;spr<sprites.length;spr++) {
 			for (j=0;j<scripts[spr][3][keyc].length;j++) {
 				scripts[spr][3][keyc][j]();
 			}
+		}
+
 		}
 }
 
@@ -2532,7 +2612,7 @@ function calcMouse(type, item) {
 
 function touchDown(evt) {
 
-		touchMove(evt);
+	touchMove(evt);
 
 
 	mouseDown(evt);
@@ -2542,6 +2622,8 @@ function touchUp(evt) {
 
 	scratchMouseDown = false;
 
+	if (loadedb) {
+
 	if (previousTouchesLength == 1) {
 
 	for (i=0; i<touchButtonsX.length; i++) {
@@ -2550,11 +2632,17 @@ function touchUp(evt) {
 
 	}
 
+	}
+
 }
 
 function mouseDown(evt) {
 
+	scratchMouseDown = true;
+
 	evt.preventDefault();
+
+	if (loadedb) {
 
 	if (askString != "") {
 		if ((MouseX+240 > 439) && (MouseX+240 < 460) && (180-MouseY > 326) && (180-MouseY < 347)) {
@@ -2569,9 +2657,6 @@ function mouseDown(evt) {
 		}
 	}
 
-	scratchMouseDown = true;
-
-	if (loadedb) {
 
 	if ((MouseX > 180) && (MouseX < 206) && (MouseY < 205) && (MouseY > 184)) {
 		if (shiftKey) {
@@ -2586,8 +2671,6 @@ function mouseDown(evt) {
 		stopAll();
 	}
 
-	}
-
 	if (active) {
 		for (ms=0;ms<sprites.length;ms++) {
 			var costume = sprites[ms].costumes[sprites[ms].currentCostumeIndex];
@@ -2599,6 +2682,7 @@ function mouseDown(evt) {
 				}
 			}
 		}
+	}
 	}
 
 }
@@ -2631,7 +2715,7 @@ function init() {
 
 	focussteal = document.getElementById('scratch');
 
-	loadedb = new Boolean(false);
+	loadedb = false;
 
 	keyDownArray = new Array();
 	for (i=0;i<256;i++){
@@ -3345,6 +3429,7 @@ function blockHandler(block, reporter) {
 				scripttext += "sprites[spr].direction += ";
 				blockHandler(block[1], true);
 				scripttext += "; ";
+				scripttext += "if (sprites[spr].direction < -180) sprites[spr].direction += 360*Math.ceil((sprites[spr].direction+180)/-360); ";
 				scripttext += "sprites[spr].direction = ((sprites[spr].direction+180)%360)-180; ";
 
 
@@ -3569,6 +3654,10 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "costumeIndex") {
 
 				scripttext += "(sprites[spr].currentCostumeIndex+1)";
+
+			} else if (block[0] == "backgroundIndex") {
+
+				scripttext += "(project.currentCostumeIndex+1)";
 
 
 			} else if (block[0] == "randomFrom:to:") {
@@ -4356,9 +4445,10 @@ var ReadFile = function(url) {
 	
 		log(" ");
 
-		execGreenFlag();
+		if (typeof editorInit == 'function') {
+			editorInit();
+		}
 
-		updateInterval = setInterval(update, 33);
 		setTimeout(renderSVGs, 1);
 
         };
