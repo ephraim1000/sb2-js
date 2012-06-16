@@ -29,10 +29,10 @@ editorInit() is called when the project is loaded. This is mainly for an editor 
 
 Here's an example:
 
-{{{ <script>
-autoLoad = "examples/MarioBros.sb2";
-framed = false;
-</scipt> }}}
+<script>
+    autoLoad = "examples/MarioBros.sb2";
+    framed = false;
+</script>
 
 This will load MarioBros.sb2 with no frame at normal scale. The width and height of the canvas should be 480x360 for a non framed project, so make sure to configure the canvas right.
 
@@ -42,4 +42,3 @@ You can call these from anywhere in the page to control the player.
 
 execGreenFlag() - executes Green Flag scripts. should always be called after stopAll().
 stopAll() - stops all scripts.
-
