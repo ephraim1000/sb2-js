@@ -18,6 +18,21 @@
 // base 64 encode by some guy 
 // thanks some guy
 
+function castNumber(casting) {
+	casting = Number(casting);
+	if (typeof casting === "number") return casting;
+	else return 0;
+}
+
+window.ondevicemotion = function(event) {
+	if (!loadedb) return;
+
+	var accel = (event.accelerationIncludingGravity);
+
+	if ((Math.sqrt(Math.pow(accel.x, 2) + Math.pow(accel.y, 2) + Math.pow(accel.z, 2)) > 20) && (!(shakeToggle))) { turboMode = (!(turboMode)); shakeToggle = true; }
+	else shakeToggle = false;
+}
+
 function base64Encode(bytearray){
 
     var digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
@@ -111,6 +126,9 @@ function computeSaturation(r, g, b){
 function genNote(note, duration) {
 
 	if (!(audioSupported)) return;
+
+	note = Math.round(note);
+	duration = Math.min(10, duration);
 
 	sampleRate = 44100;
 	volume = 0.5;
@@ -739,6 +757,7 @@ function scratchDrawSpeech() {
 
 function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn, repeatNum) {
 	if (typeof repeatNum == "undefined") repeatNum = 0;
+	broadcastReturn = false;
 
 	if (type != 'broadcast') {
 
@@ -758,16 +777,29 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 	executionQueue[spriten].push(obj);
 
 	} else {
+
+	var initsprite = spriten;
 	for (spriten=0;spriten<sprites.length;spriten++) {
 
 		if (scripts[spriten][5][sid] != undefined) {
-			for (i=0;i<executionQueue[spriten].length;i++) {
-				if ((type == executionQueue[spriten][i].topLevelType) && (sid == executionQueue[spriten][i].topLevelSID) && (sid != executionQueue[spriten][i].scriptID)) executionQueue[spriten].splice(i, 1);
-				if ((spr==spriten) && (q > i)) q-=1;
+			for (brc=0;brc<executionQueue[spriten].length;brc++) {
+				if (("broadcast" == executionQueue[spriten][brc].topLevelType) && (sid == executionQueue[spriten][brc].topLevelSID) && !((spriten == initsprite) && (brc == q))) eraseExec(spriten, brc);
+				if ((spriten == initsprite) && (brc == q) && ("broadcast" == executionQueue[spriten][brc].topLevelType) && (sid == executionQueue[spriten][brc].topLevelSID)) broadcastReturn = true;
 			}
 
-			repeatstackn = repeatStacks[spriten].length;
-			repeatStacks[spriten].push(new Array());
+			if (typeof bcRepeatStackIDs[spriten][sid] == "undefined") {
+
+				repeatstackn = repeatStacks[spriten].length;
+				repeatStacks[spriten].push(new Array());
+				bcRepeatStackIDs[spriten][sid] = repeatstackn;
+
+				repeatStackCount += 1;
+
+			} else {
+
+				repeatstackn = bcRepeatStackIDs[spriten][sid];
+
+			}
 
 			var obj = new Object();
 			obj.type = type;
@@ -785,12 +817,24 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 	spriten = "stage";
 
 		if (scripts[spriten][5][sid] != undefined) {
-			for (i=0;i<executionQueue[spriten].length;i++) {
-				if ((type == executionQueue[spriten][i].topLevelType) && (sid == executionQueue[spriten][i].topLevelSID) && (sid != executionQueue[spriten][i].scriptID)) executionQueue[spriten].splice(i, 1);
+			for (brc=0;brc<executionQueue[spriten].length;brc++) {
+				if (("broadcast" == executionQueue[spriten][brc].topLevelType) && (sid == executionQueue[spriten][brc].topLevelSID) && !((spriten == initsprite) && (brc == q))) eraseExec(spriten, brc);
+				if ((spriten == initsprite) && (brc == q) && ("broadcast" == executionQueue[spriten][brc].topLevelType) && (sid == executionQueue[spriten][brc].topLevelSID)) broadcastReturn = true;
 			}
 
-			repeatstackn = repeatStacks[spriten].length;
-			repeatStacks[spriten].push(new Array());
+			if (typeof bcRepeatStackIDs[spriten][sid] == "undefined") {
+
+				repeatstackn = repeatStacks[spriten].length;
+				repeatStacks[spriten].push(new Array());
+				bcRepeatStackIDs[spriten][sid] = repeatstackn;
+
+				repeatStackCount += 1;
+
+			} else {
+
+				repeatstackn = bcRepeatStackIDs[spriten][sid];
+
+			}
 
 			var obj = new Object();
 			obj.type = type;
@@ -810,12 +854,12 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 function eraseExec(spriten, value) {
 	executionQueue[spriten].splice(value, 1);
 
-	for (r=0; r<repeatStacks[spr].length; r++) {
-		for (stack=0; stack<repeatStacks[spr][r].length; stack++) {
-		if (repeatStacks[spr][r][stack] > value) repeatStacks[spr][r][stack] -= 1;
+	for (r=0; r<repeatStacks[spriten].length; r++) {
+		for (stack=0; stack<repeatStacks[spriten][r].length; stack++) {
+		if (repeatStacks[spriten][r][stack] > value) repeatStacks[spriten][r][stack] -= 1;
 		}
 	}
-	if (q > value) q -= 1;
+	if ((spr == spriten) && (q > value)) q -= 1;
 }
 
 function processExecutionQueue() {
@@ -989,83 +1033,24 @@ function scratchRemoveExtraBrackets(text) {
 
 function scratchSetVar(spriten, name, value) {
 
-	if (!(spriten == "stage")) {
+	varRefs[spriten][name].value = value;
 
-	if (typeof sprites[spriten].variables != 'undefined') {
-
-	var id = varIndex[spriten].indexOf(name);
-
-	if (id != -1) {
-		sprites[spriten].variables[id].value = value;
-		return;
-	}
-
-	}
-
-	}
-
-	id = globalvarIndex.indexOf(name);
-
-	if (id != -1) {
-		project.variables[id].value = value;
-		return;
-	}
-
-	log("Cannot set variable '"+name+"', does not exist!");
+	//log("Cannot set variable '"+name+"', does not exist!");
 }
 
 function scratchChangeVar(spriten, name, value) {
 
-	if (!(spriten == "stage")) {
+	varRefs[spriten][name].value = castNumber(varRefs[spriten][name].value);
+	varRefs[spriten][name].value += castNumber(value);
 
-	if (typeof sprites[spriten].variables != 'undefined') {
-
-	var id = varIndex[spriten].indexOf(name);
-
-	if (id != -1) {
-		sprites[spriten].variables[id].value = Number(sprites[spriten].variables[id].value)
-		sprites[spriten].variables[id].value += Number(value);
-		return;
-	}
-
-	}
-
-	}
-
-	id = globalvarIndex.indexOf(name);
-
-	if (id != -1) {
-		project.variables[id].value = Number(project.variables[id].value);
-		project.variables[id].value += Number(value);
-		return;
-	}
-
-	log("Cannot set variable '"+name+"', does not exist!");
+	//log("Cannot set variable '"+name+"', does not exist!");
 }
 
 function scratchReadVar(spriten, name) {
 
-	if (!(spriten == "stage")) {
+	return varRefs[spriten][name].value;
 
-	if (typeof sprites[spriten].variables != 'undefined') {
-
-	var id = varIndex[spriten].indexOf(name);
-
-	if (id != -1) {
-		return sprites[spriten].variables[id].value;
-	}
-
-	}
-
-	}
-
-	id = globalvarIndex.indexOf(name);
-
-	if (id != -1) {
-		return project.variables[id].value;
-	}
-
-	log("Cannot read variable '"+name+"', does not exist!");
+	//log("Cannot read variable '"+name+"', does not exist!");
 }
 
 function scratchGetAttribute(name, target) {
@@ -1110,261 +1095,82 @@ function scratchGetAttribute(name, target) {
 
 function scratchReadList(spriten, location, name) {
 
-	if (!(spriten == "stage")) {
-
-	if (typeof sprites[spriten].lists != 'undefined') {
-
-	var id = listIndex[spriten].indexOf(name);
-
-	if (id != -1) {
-		if (location == 'any') {
-			return sprites[spriten].lists[id].contents[scratchRandomFromTo(1, sprites[spriten].lists[id].contents.length)];
-		} else if (location == 'last') {
-			return sprites[spriten].lists[id].contents[sprites[spriten].lists[id].contents.length];
-		} else {
-			var value = sprites[spriten].lists[id].contents[location-1];
-			return (value == undefined)?null:value;
-		}
+	if (location == 'any') {
+		return listRefs[spriten][name].contents[scratchRandomFromTo(1, listRefs[spriten][name].contents.length)];
+	} else if (location == 'last') {
+		return listRefs[spriten][name].contents[listRefs[spriten][name].length];
+	} else {
+		var value = listRefs[spriten][name].contents[location-1];
+		return (value == undefined)?null:value;
 	}
 
-	}
-
-	}
-
-	var id = globallistIndex.indexOf(name);
-
-	if (id != -1) {
-		if (location == 'any') {
-			return project.lists[id].contents[scratchRandomFromTo(1, project.lists[id].contents.length)];
-		} else if (location == 'last') {
-			return project.lists[id].contents[project.lists[id].contents.length];
-		} else {
-			var value = project.lists[id].contents[location-1];
-			return (value == undefined)?null:value;
-		}
-	}
-
-	log("Cannot read from list '"+name+"', does not exist!");
+	//log("Cannot read from list '"+name+"', does not exist!");
 }
 
 function scratchAppendList(spriten, value, name) {
 
-	if (!(spriten == "stage")) {
+	listRefs[spriten][name].contents.push(value);
+	return;
 
-	if (typeof sprites[spriten].lists != 'undefined') {
-
-	var id = listIndex[spriten].indexOf(name);
-
-	if (id != -1) {
-		sprites[spriten].lists[id].contents.push(value);
-		return;
-	}
-
-	}
-
-	}
-
-	var id = globallistIndex.indexOf(name);
-
-	if (id != -1) {
-		project.lists[id].contents.push(value);
-		return;
-	}
-
-	log("Cannot add to list '"+name+"', does not exist!");
+	//log("Cannot add to list '"+name+"', does not exist!");
 }
 
 function scratchDeleteList(spriten, location, name) {
 
-	if (!(spriten == "stage")) {
-
-	if (typeof sprites[spriten].lists != 'undefined') {
-
-	var id = listIndex[spriten].indexOf(name);
-
-	if (id != -1) {
 		
-		if (location == 'all') {
-			sprites[spriten].lists[id].contents = new Array();
-		} else if (location == 'last') {
-			sprites[spriten].lists[id].contents.pop();
-		} else {
-			sprites[spriten].lists[id].contents.splice(location-1, 1);
-		}
-		return;
+	if (location == 'all') {
+		listRefs[spriten][name].contents = new Array();
+	} else if (location == 'last') {
+		listRefs[spriten][name].contents.pop();
+	} else {
+		listRefs[spriten][name].contents.splice(location-1, 1);
 	}
 
-	}
-
-	}
-
-	var id = globallistIndex.indexOf(name);
-
-	if (id != -1) {
-
-		if (location == 'all') {
-			project.lists[id].contents = new Array();
-		} else if (location == 'last') {
-			project.lists[id].contents.pop();
-		} else {
-			project.lists[id].contents.splice(location-1, 1);
-		}
-		return;
-	}
-
-	log("Cannot remove from list '"+name+"', does not exist!");
+	//log("Cannot remove from list '"+name+"', does not exist!");
 }
 
 function scratchAddList(spriten, value, location, name) {
 
-	if (!(spriten == "stage")) {
-
-	if (typeof sprites[spriten].lists != 'undefined') {
-
-	var id = listIndex[spriten].indexOf(name);
-
-	if (id != -1) {
 		
-		if (location == 'any') {
-			sprites[spriten].lists[id].contents.splice(scratchRandomFromTo(1, sprites[spriten].lists[id].contents.length), 0, value);
-		} else if (location == 'last') {
-			sprites[spriten].lists[id].contents.push(value);
-		} else {
-			sprites[spriten].lists[id].contents.splice(location-1, 0, value);
-		}
-		return;
+	if (location == 'any') {
+		listRefs[spriten][name].contents.splice(scratchRandomFromTo(1, listRefs[spriten][name].contents.length), 0, value);
+	} else if (location == 'last') {
+		listRefs[spriten][name].contents.push(value);
+	} else {
+		listRefs[spriten][name].contents.splice(location-1, 0, value);
 	}
 
-	}
-
-	}
-
-	var id = globallistIndex.indexOf(name);
-
-	if (id != -1) {
-
-		if (location == 'any') {
-			project.lists[id].contents.splice(location-1, scratchRandomFromTo(1, project.lists[id].contents.length), value);
-		} else if (location == 'last') {
-			project.lists[id].contents.push(value);
-		} else {
-			project.lists[id].contents.splice(location-1, 0, value);
-		}
-		return;
-	}
-
-	log("Cannot add to list '"+name+"', does not exist!");
+	//log("Cannot add to list '"+name+"', does not exist!");
 }
 
 function scratchReplaceList(spriten, value, location, name) {
-
-	if (!(spriten == "stage")) {
-
-	if (typeof sprites[spriten].lists != 'undefined') {
-
-	var id = listIndex[spriten].indexOf(name);
-
-	if (id != -1) {
 		
-		if (location == 'any') {
-			sprites[spriten].lists[id].contents[scratchRandomFromTo(1, sprites[spriten].lists[id].contents.length)] = value;
-		} else if (location == 'last') {
-			sprites[spriten].lists[id].contents[sprites[spriten].lists[id].contents.length] = value;
-		} else {
-			sprites[spriten].lists[id].contents[location-1] = value;
-		}
-		return;
+	if (location == 'any') {
+		listRefs[spriten][name].contents[scratchRandomFromTo(1, listRefs[spriten][name].contents.length)] = value;
+	} else if (location == 'last') {
+		listRefs[spriten][name].contents[listRefs[spriten][name].contents.length] = value;
+	} else {
+		listRefs[spriten][name].contents[location-1] = value;
 	}
 
-	}
-
-	}
-
-	var id = globallistIndex.indexOf(name);
-
-	if (id != -1) {
-
-		if (location == 'any') {
-			project.lists[id].contents[scratchRandomFromTo(1, project.lists[id].contents.length)] = value;
-		} else if (location == 'last') {
-			project.lists[id].contents[project.lists[id].contents.length] = value;
-		} else {
-			project.lists[id].contents[location-1] = value;
-		}
-
-		return;
-	}
-
-	log("Cannot remove from list '"+name+"', does not exist!");
+	//log("Cannot remove from list '"+name+"', does not exist!");
 }
 
 function scratchListContents(spriten, name) {
 
-	if (!(spriten == "stage")) {
+	return listRefs[spriten][name].contents.join("");
 
-	if (typeof sprites[spriten].lists != 'undefined') {
-
-	var id = listIndex[spriten].indexOf(name);
-
-	if (id != -1) {
-		return sprites[spriten].lists[id].contents.join("");
-	}
-
-	}
-
-	}
-
-	var id = globallistIndex.indexOf(name);
-
-	if (id != -1) {
-		return project.lists[id].contents.join("");
-	}
 }
 
 function scratchListLength(spriten, name) {
 
-	if (!(spriten == "stage")) {
+	return listRefs[spriten][name].contents.length;
 
-	if (typeof sprites[spriten].lists != 'undefined') {
-
-	var id = listIndex[spriten].indexOf(name);
-
-	if (id != -1) {
-		return sprites[spriten].lists[id].contents.length;
-	}
-
-	}
-
-	}
-
-	var id = globallistIndex.indexOf(name);
-
-	if (id != -1) {
-		return project.lists[id].contents.length;
-	}
 }
 
 function scratchListContains(spriten, name, value) {
 
-	if (!(spriten == "stage")) {
-
-	if (typeof sprites[spriten].lists != 'undefined') {
-
-	var id = listIndex[spriten].indexOf(name);
-
-	if (id != -1) {
-		return (sprites[spriten].lists[id].contents.indexOf(value) > -1);
-	}
-
-	}
-
-	}
-
-	var id = globallistIndex.indexOf(name);
-
-	if (id != -1) {
-		return (project.lists[id].contents.indexOf(value) > -1);
-	}
+	return (listRefs[spriten][name].contents.indexOf(value) > -1);
 }
 
 
@@ -1394,6 +1200,12 @@ function scratchStopAllSounds() {
 		audio[i].currentTime = 0.0;
 		} catch(err) {
 
+		}
+	}
+
+	for (spriten=0;spriten<sprites.length;spriten++) {
+		for (sndtest=0;sndtest<executionQueue[spriten].length;sndtest++) {
+			if ((executionQueue[spriten][sndtest].type == "wait") && (executionQueue[spriten][sndtest].repeatNum == "audio")) executionQueue[spriten][sndtest].timeUntil = 0;
 		}
 	}
 }
@@ -1430,8 +1242,8 @@ function scratchPointTowards(spriten, name) {
 
 function scratchStep(spriten, value) {
 	//alert(value);
-	sprites[spriten].scratchX = Number(sprites[spriten].scratchX);
-	sprites[spriten].scratchY = Number(sprites[spriten].scratchY);
+	sprites[spriten].scratchX = castNumber(sprites[spriten].scratchX);
+	sprites[spriten].scratchY = castNumber(sprites[spriten].scratchY);
 
 	sprites[spriten].scratchX += Math.sin(sprites[spriten].direction*Math.PI/180)*value;
 	sprites[spriten].scratchY += Math.cos(sprites[spriten].direction*Math.PI/180)*value;
@@ -1532,58 +1344,63 @@ function scratchMod(val1, val2) {
 }
 
 function scratchGotoXY(spriten, x, y) {
-	x = parseFloat(x);
-	y = parseFloat(y);
+	x = castNumber(x);
+	y = castNumber(y);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
-		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
-		penctx.lineTo(x+240, 180-y);
+		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
+		penctx.lineTo(x+240.5, 180.5-y);
 		penctx.stroke();
+		movedSincePen = true;
 	}
 	sprites[spriten].scratchX = x;
 	sprites[spriten].scratchY = y;
 }
 
 function scratchGotoX(spriten, x) {
-	x = parseFloat(x);
+	x = castNumber(x);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
-		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
-		penctx.lineTo(x+240, 180-sprites[spriten].scratchY);
+		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
+		penctx.lineTo(x+240.5, 180.5-sprites[spriten].scratchY);
 		penctx.stroke();
+		movedSincePen = true;
 	}
 	sprites[spriten].scratchX = x;
 }
 
 function scratchChangeX(spriten, x) {
-	x = parseFloat(x);
+	x = castNumber(x);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
-		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
-		penctx.lineTo(sprites[spriten].scratchX+x+240, 180-sprites[spriten].scratchY);
+		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
+		penctx.lineTo(sprites[spriten].scratchX+x+240.5, 180.5-sprites[spriten].scratchY);
 		penctx.stroke();
+		movedSincePen = true;
 	}
 	sprites[spriten].scratchX += x;
 }
 
 function scratchGotoY(spriten, y) {
-	y = parseFloat(y);
+	y = castNumber(y);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
-		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
-		penctx.lineTo(sprites[spriten].scratchX+240, 180-y);
+		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
+		penctx.lineTo(sprites[spriten].scratchX+240.5, 180.5-y);
 		penctx.stroke();
+		movedSincePen = true;
 	}
 	sprites[spriten].scratchY = y;
 }
 
 function scratchChangeY(spriten, y) {
-	y = parseFloat(y);
+	y = castNumber(y);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
-		penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY);
-		penctx.lineTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY+y);
+		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
+		penctx.lineTo(sprites[spriten].scratchX+240.5, 180.5-(sprites[spriten].scratchY+y));
 		penctx.stroke();
+		movedSincePen = true;
 	}
 	sprites[spriten].scratchY += y;
 }
@@ -1764,14 +1581,16 @@ function rotatedBoundsCalculation(destsprite, costume) {
 		SprCornersY.push(costume.rotationCenterY-images[costume.baseLayerID].height);
 		SprCornersY.push(costume.rotationCenterY);
 
+		var scale = sprites[destsprite].scale;
+
 		SprCornersXRot = new Array();
 		SprCornersYRot = new Array();
 
 		var radians = (sprites[destsprite].direction-90)*Math.PI/180;
 
 		for (rot=0; rot<4; rot++) {
-			SprCornersXRot.push(Math.cos(radians)*SprCornersX[rot]+Math.sin(radians)*SprCornersY[rot]);
-			SprCornersYRot.push(Math.cos(radians)*SprCornersY[rot]+Math.sin(radians)*SprCornersX[rot]);
+			SprCornersXRot.push(Math.cos(radians)*SprCornersX[rot]*scale+Math.sin(radians)*SprCornersY[rot]*scale);
+			SprCornersYRot.push(Math.cos(radians)*SprCornersY[rot]*scale+Math.sin(radians)*SprCornersX[rot]*scale);
 		}
 }
 
@@ -2038,12 +1857,9 @@ function scratchClearPen() {
 }
 
 function scratchPenDot(spriten) {
-	penctx.lineCap = "round";
 	penctx.beginPath();
-	penctx.lineWidth = specialproperties[spriten].pensize;
-	penctx.strokeStyle = specialproperties[spriten].color;
-	penctx.moveTo(sprites[spriten].scratchX+240, 180-sprites[spriten].scratchY); 
-	penctx.lineTo(sprites[spriten].scratchX+240.1, 180-sprites[spriten].scratchY);
+	penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY); 
+	penctx.lineTo(sprites[spriten].scratchX+240.6, 180.5-sprites[spriten].scratchY);
 	penctx.stroke();
 }
 
@@ -2159,6 +1975,15 @@ function scratchClone(spriten, name) {
 			executionQueue.push(new Array());
 			repeatStacks.push(new Array());
 
+			var tempobj = new Object();
+			tempobj.time = 0;
+			tempobj.starttime = 0;
+			tempobj.x = 0;
+			tempobj.y = 0;
+			tempobj.startx = 0;
+			tempobj.starty = 0;
+			glideData.push(tempobj);
+
 			var temp = JSON.stringify(varIndex[i]);
 			varIndex.push(JSON.parse(temp));
 
@@ -2203,6 +2028,7 @@ function scratchDeleteClone(spriten) {
 	scripts.splice(spriten, 1);
 	executionQueue.splice(spriten, 1);
 	repeatStacks.splice(spriten, 1);
+	glideData.splice(spriten, 1);
 	varIndex.splice(spriten, 1);
 	soundIndex.splice(spriten, 1);
 	listIndex.splice(spriten, 1);
@@ -2319,7 +2145,7 @@ function drawVariableDisplay(ent) {
 						scratchSetVar(resid, varDisplay[ent].param, vardisplay);
 					}
 
-					var scrollfactor = (Math.max(Math.min(parseFloat(vardisplay), varDisplay[ent].sliderMax), varDisplay[ent].sliderMin) - varDisplay[ent].sliderMin) / (varDisplay[ent].sliderMax - varDisplay[ent].sliderMin)
+					var scrollfactor = (Math.max(Math.min(castNumber(vardisplay), varDisplay[ent].sliderMax), varDisplay[ent].sliderMin) - varDisplay[ent].sliderMin) / (varDisplay[ent].sliderMax - varDisplay[ent].sliderMin)
 
 					sprctx.beginPath();
 					sprctx.arc(varDisplay[ent].x+8.5+(scrollwidth*scrollfactor), varDisplay[ent].y+25.5, 4.5, 0, Math.PI*2, true); 
@@ -2347,29 +2173,30 @@ loaded = 0;
 function drawProgress() {
 	baranim += 1;
 	framectx.clearRect(0, 0, 486, 391);
-	framectx.drawImage(frame, 0, 0);
-	framectx.drawImage(preload, 3, 28);
-	//framectx.fillStyle = "#FF9900";
-    	//framectx.font = "6pt Arial";
-	//var textmeasure = framectx.measureText(LoadBytes+" / "+LoadTotal);
-	//var textmeasure = 20;
-	//framectx.fillText(LoadBytes+" / "+LoadTotal, (143+100)-(textmeasure/2), 270-2);
-	//var textmeasure = framectx.measureText(LoadProgress+"%");
-	//framectx.textBaseline = "top";
-	//framectx.fillText(LoadProgress+"%", (143+100)-(textmeasure/2), 251-2);
+
 	barctx.drawImage(bar, -50+baranim%50, 0);
-    	barctx.font = "6pt Arial";
-	//barctx.textBaseline = "top";
-	//barctx.fillStyle = "#FFFFFF";
-	//barctx.fillText(LoadProgress+"%", 100-(textmeasure/2), -2);
 	barctx.clearRect(199-Math.round((100-LoadProgress)*1.98),1,Math.round((100-LoadProgress)*1.98),6);
-	framectx.drawImage(barcanvas, 143, 251);
+
+	if (framed) {
+
+		framectx.drawImage(frame, 0, 0);
+		framectx.drawImage(preload, 3, 28);
+		framectx.drawImage(barcanvas, 143, 251);
+
+	} else {
+
+		framectx.drawImage(preload, 0, 0);
+		framectx.drawImage(barcanvas, 140, 223);
+
+	}
 }
 
 function IncLoad() {
 	loaded += 1;
 	if (loaded == totalfiles) {
-		framectx.drawImage(frame, 0, 0)
+		if (framed) {
+			framectx.drawImage(frame, 0, 0)
+		}
 		if (typeof autoLoad != 'undefined') ReadFile(autoLoad);
 	}
 }
@@ -2515,6 +2342,10 @@ function keyUp(evt) {
 }
 
 function getMousePosition(evt) {
+
+	if (typeof scaledHeight == "undefined") scale = 1;
+	else scale = scaledHeight / framecanvas.height;
+
 	el = framecanvas
 
 	var _x = 0;
@@ -2526,9 +2357,17 @@ function getMousePosition(evt) {
         el = el.offsetParent;
     }
 
+	if (framed) {
 
-	MouseX = (evt.pageX - _x)-241;
-	MouseY = 206 - (evt.pageY - _y);
+		MouseX = ((evt.pageX - _x)-241*scale)/scale;
+		MouseY = (206*scale - (evt.pageY - _y))/scale;
+
+	} else {
+
+		MouseX = ((evt.pageX - _x)-240*scale)/scale;
+		MouseY = (180*scale - (evt.pageY - _y))/scale;
+
+	}
 
 
 }
@@ -2548,8 +2387,20 @@ function touchMove(evt) {
         el = el.offsetParent;
     }
 
-	MouseX = (evt.touches[0].pageX - _x)-241;
-	MouseY = 206 - (evt.touches[0].pageY - _y);
+	if (typeof scaledHeight == "undefined") scale = 1;
+	else scale = scaledHeight / framecanvas.height;
+
+	if (framed) {
+
+		MouseX = ((evt.touches[0].pageX - _x)-241*scale)/scale;
+		MouseY = (206*scale - (evt.touches[0].pageY - _y))/scale;
+
+	} else {
+
+		MouseX = ((evt.touches[0].pageX - _x)-240*scale)/scale;
+		MouseY = (180*scale - (evt.touches[0].pageY - _y))/scale;
+
+	}
 
 
 	for (j=0; j<evt.touches.length; j++) {
@@ -2591,6 +2442,9 @@ function touchMove(evt) {
 
 function calcMouse(type, item) {
 
+	if (typeof scaledHeight == "undefined") scale = 1;
+	else scale = scaledHeight / framecanvas.height;
+
 	event.preventDefault();
 
 	el = framecanvas
@@ -2604,8 +2458,18 @@ function calcMouse(type, item) {
         el = el.offsetParent;
     }
 
-	if (type == "x") return (item - _x)-241;
-	if (type == "y") return 206 - (item - _y);
+	if (framed) {
+
+	if (type == "x") return ((item - _x)-241*scale)/scale;
+	if (type == "y") return (206*scale - (item - _y))/scale;
+
+	} else {
+
+	if (type == "x") return ((item - _x)-240*scale)/scale;
+	if (type == "y") return (180*scale - (item - _y))/scale;
+
+
+	}
 
 }
 
@@ -2695,6 +2559,10 @@ function mouseUp(evt) {
 
 function init() {
 
+	if (typeof framed == "undefined") framed = true;
+
+	movedSincePen = false;
+
 	previousTouchesLength = 0;
 
 	touchesKeyCodes = []
@@ -2702,6 +2570,7 @@ function init() {
 	shiftKey = false;
 	turboMode = false;
 	scratchMouseDown = false;
+	drawStage = 0;
 
 	console = false;
 	consolelog = new Array();
@@ -2800,6 +2669,7 @@ function init() {
 		touchbuttons = new Image();
 		touchbuttons.src = "phonebuttons.png"
 		touchbuttons.onload = IncLoad;
+
 	}
 
 	// End Player Images
@@ -2967,7 +2837,7 @@ function blockHandler(block, reporter) {
 				blockHandler(block[1], true);
 				scripttext += ")";
 
-				scripttext += ", topType, topSID, topRepeat); return; ";
+				scripttext += ", topType, topSID, topRepeat, 'audio'); return; ";
 				scripts[spritenum][2][scripts[spritenum][2].length] = scripttext.length;
 
 			} else if (block[0] == "doRepeat") {
@@ -3091,7 +2961,7 @@ function blockHandler(block, reporter) {
 
 				scripttext += "scratchAddExecution(spr, 'broadcast', getBroadcastID(";
 				blockHandler(block[1], true);
-				scripttext += "), 1);";
+				scripttext += "), 1); if(broadcastReturn) { repeatBreak = true; return; } ";
 
 			} else if (block[0] == "doBroadcastAndWait") {
 
@@ -3256,11 +3126,11 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "putPenDown") {
 
-				scripttext += "specialproperties[spr].pendown = true; scratchPenDot(spr); ";
+				scripttext += "specialproperties[spr].pendown = true; movedSincePen = false;";
 
 			} else if (block[0] == "putPenUp") {
 
-				scripttext += "specialproperties[spr].pendown = false; ";
+				scripttext += "specialproperties[spr].pendown = false; if (!movedSincePen) scratchPenDot(spr); ";
 
 			} else if (block[0] == "stopAllSounds") {
 
@@ -3291,6 +3161,12 @@ function blockHandler(block, reporter) {
 				scripttext += "sprites[spr].scale = (";
 				blockHandler(block[1], true);
 				scripttext += ")/100; ";
+
+			} else if (block[0] == "setTempoTo:") {
+
+				scripttext += "scratchTempo = (";
+				blockHandler(block[1], true);
+				scripttext += "); ";
 
 			} else if (block[0] == "changeSizeBy:") {
 
@@ -3426,18 +3302,18 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "turnRight:") {
 
-				scripttext += "sprites[spr].direction += ";
+				scripttext += "sprites[spr].direction += castNumber(";
 				blockHandler(block[1], true);
-				scripttext += "; ";
+				scripttext += "); ";
 				scripttext += "if (sprites[spr].direction < -180) sprites[spr].direction += 360*Math.ceil((sprites[spr].direction+180)/-360); ";
 				scripttext += "sprites[spr].direction = ((sprites[spr].direction+180)%360)-180; ";
 
 
 			} else if (block[0] == "heading:") {
 
-				scripttext += "sprites[spr].direction = ";
+				scripttext += "sprites[spr].direction = castNumber(";
 				blockHandler(block[1], true);
-				scripttext += "; ";
+				scripttext += "); ";
 				scripttext += "if (sprites[spr].direction < -180) sprites[spr].direction += 360*Math.ceil((sprites[spr].direction+180)/-360); ";
 				scripttext += "sprites[spr].direction = ((sprites[spr].direction+180)%360)-180; ";
 
@@ -3519,17 +3395,17 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == ">") {
 
-				scripttext += "(parseFloat(";
+				scripttext += "(castNumber(";
 				blockHandler(block[1], true);
-				scripttext += ") > parseFloat(";
+				scripttext += ") > castNumber(";
 				blockHandler(block[2], true);
 				scripttext += "))";
 
 			} else if (block[0] == "<") {
 
-				scripttext += "(parseFloat(";
+				scripttext += "(castNumber(";
 				blockHandler(block[1], true);
-				scripttext += ") < parseFloat(";
+				scripttext += ") < castNumber(";
 				blockHandler(block[2], true);
 				scripttext += "))";
 
@@ -3565,9 +3441,9 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "+") {
 
-				scripttext += "(Number(";
+				scripttext += "(castNumber(";
 				blockHandler(block[1], true);
-				scripttext += ") + Number(";
+				scripttext += ") + castNumber(";
 				blockHandler(block[2], true);
 				scripttext += "))";
 
@@ -3743,6 +3619,7 @@ function stopAll() {
 
 	for (i=0;i<sprites.length;i++) {
 		if (sprites[i].clone != undefined) {
+			num = layerOrder.indexOf(i);
 			scratchDeleteClone(i);
 			i -= 1;
 		} else {
@@ -3781,6 +3658,8 @@ function stopAll() {
 }
 
 function execGreenFlag() {
+
+	q = -1;
 
 	endFrameMs = new Date().getTime();
 
@@ -3922,76 +3801,11 @@ function touchingScreenSection(touchx, touchy, x, y, bwidth, bheight) {
 
 function update() {
 
-	freeMs = new Date().getTime() - endFrameMs;
-
-	startAllFrameMs = new Date().getTime();
-
-	if (focus == 1) {
-
-	focussteal.focus()
-
-	}
-
 	framectx.clearRect(0, 0, 486, 391);
-
-	if(active) {
-
-	if (turboMode) {
-		while (new Date().getTime() - startAllFrameMs < 33) executeFrame();
-	} else {
-		executeFrame();
-	
-	}
-
-	} else {
-		startFrameMs = new Date().getTime();
-	}
-
-	updateMs = new Date().getTime() - startFrameMs;
 
 	renderMs = new Date().getTime();
 
 	scratchPartialDraw(drawStage, layerOrder.length);
-
-	/*
-
-	// BEGIN DRAWING CODE
-
-	for (ent=0;ent<layerOrderVarDisplay.length;ent++) {
-			
-		if (layerOrderVarDisplay[ent] == -1) {
-			drawVariableDisplay();
-		}
-
-	}
-
-	spr = 0;
-
-	for (num=0;num<layerOrder.length;num++) { //spr=0;sprites.length;spr++
-
-		for (ent=0;ent<layerOrderVarDisplay.length;ent++) {
-			
-			if (layerOrderVarDisplay[ent] == num) {
-				drawVariableDisplay();
-			}
-
-		}
-
-// ------- SPRITES -------
-
-		spr = layerOrder[num]; 
-
-		if (sprites[spr] == undefined) continue;
-
-		if (sprites[spr].visible) {
-
-		scratchDrawSprite(sprctx, spr);
-
-		}
-
-	}
-
-	*/
 
 	scratchDrawSpeech();
 
@@ -4037,22 +3851,63 @@ function update() {
 
 	// END DRAWING CODE
 
-	framectx.drawImage(frame, 0, 0);
-	framectx.drawImage(canvas, 3, 28);
+	if (framed) { //bundled frame drawing code
 
-	if ((MouseX > 180) && (MouseX < 206) && (MouseY < 205) && (MouseY > 184)) {
-		framectx.drawImage(greenflaga, 423, 3);	
-	} else {
-		framectx.drawImage(greenflagn, 423, 3);	
-	}
+		framectx.drawImage(frame, 0, 0);
+		framectx.drawImage(canvas, 3, 28);
 
-	if ((MouseX > 215) && (MouseX < 235) && (MouseY < 205) && (MouseY > 184)) {
-		framectx.drawImage(stopa, 456, 3);
-	} else {
-		framectx.drawImage(stopn, 456, 3);
-	}
+		if ((MouseX > 180) && (MouseX < 206) && (MouseY < 205) && (MouseY > 184)) {
+			framectx.drawImage(greenflaga, 423, 3);	
+		} else {
+			framectx.drawImage(greenflagn, 423, 3);	
+		}
+
+		if ((MouseX > 215) && (MouseX < 235) && (MouseY < 205) && (MouseY > 184)) {
+			framectx.drawImage(stopa, 456, 3);
+		} else {
+			framectx.drawImage(stopn, 456, 3);
+		}
 
 	if (turboMode) framectx.fillText("Turbo Mode", 360, 15)
+
+	} else { //draws only the canvas, useful for custom frames.
+
+		framectx.drawImage(canvas, 0, 0);
+
+	}
+
+	//-----------EXPERIMENTAL DRAWING AT START OF FRAME-----------
+
+	freeMs = new Date().getTime() - endFrameMs;
+
+	startAllFrameMs = new Date().getTime();
+
+	if (focus == 1) {
+
+	focussteal.focus()
+
+	}
+
+	if(active) {
+
+	if (turboMode) {
+		while (new Date().getTime() - startAllFrameMs < 33) executeFrame();
+	} else {
+		executeFrame();
+	
+	}
+
+	} else {
+		startFrameMs = new Date().getTime();
+	}
+
+	updateMs = new Date().getTime() - startFrameMs;
+
+	
+
+	//if you have no frame and want to call greenFlag, just have your greenFlag button call stopAll(); and execGreenFlag(); and stop would just call stopAll();
+
+
 
 }
 
@@ -4067,7 +3922,6 @@ function ScratchToJS(lscripts) {
 
 		for (i=0;i<broadcastArgs.length;i++) {
 			if (typeof scripts[spritenum][5][i] == 'undefined') scripts[spritenum][5][i] = new Array();
-			if (typeof repeatStack[spritenum][5][i] == 'undefined') repeatStack[spritenum][5][i] = new Array();
 		}
 
 		scripttext = new String();
@@ -4083,44 +3937,37 @@ function ScratchToJS(lscripts) {
 		for (i=0;i<scripts[spritenum][2].length;i++) {
 			if (typeof scripts[spritenum][2][i] == 'number') {
 				scripts[spritenum][2][i] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][2][i]));
-				repeatStack[spritenum][2][i] = new Array();
 			}
 		}
 		for (i=0;i<scripts[spritenum][1].length;i++) {
 			if (typeof scripts[spritenum][1][i] == 'number') {
 				scripts[spritenum][1][i] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][1][i]));
-				repeatStack[spritenum][1][i] = new Array();
 			}
 		}
 		for (i=0;i<scripts[spritenum][0].length;i++) {
 			if (typeof scripts[spritenum][0][i] == 'number') {
 				scripts[spritenum][0][i] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][0][i]));
-				repeatStack[spritenum][0][i] = new Array();
 			}
 		}
 		for (i=0;i<scripts[spritenum][4].length;i++) {
 			if (typeof scripts[spritenum][4][i] == 'number') {
 				scripts[spritenum][4][i] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][4][i]));
-				repeatStack[spritenum][4][i] = new Array();
 			}
 		}
 		for (i=0;i<scripts[spritenum][6].length;i++) {
 			if (typeof scripts[spritenum][6][i] == 'number') {
 				scripts[spritenum][6][i] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][6][i]));
-				repeatStack[spritenum][6][i] = new Array();
 			}
 		}
 		for (i=0;i<scripts[spritenum][7].length;i++) {
 			if (typeof scripts[spritenum][7][i] == 'number') {
 				scripts[spritenum][7][i] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][6][i]));
-				repeatStack[spritenum][7][i] = new Array();
 			}
 		}
 		for (i=0;i<broadcastArgs.length;i++) {
 			for (j=0;j<scripts[spritenum][5][i].length;j++) {	
 			if (typeof scripts[spritenum][5][i][j] == 'number') {
 				scripts[spritenum][5][i][j] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][5][i][j]));
-				repeatStack[spritenum][5][i][j] = new Array();
 			}
 			}
 		}
@@ -4128,7 +3975,6 @@ function ScratchToJS(lscripts) {
 		for (i=0;i<scripts[spritenum][3][j].length;i++) {
 			if (typeof scripts[spritenum][3][j][i] == 'number') {
 				scripts[spritenum][3][j][i] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][3][j][i]));
-				repeatStack[spritenum][3][j][i] = new Array();
 			}
 		}
 		}
@@ -4182,14 +4028,24 @@ var ReadFile = function(url) {
 
 	framectx.clearRect(0, 0, 486, 391);
 
-	framectx.drawImage(frame, 0, 0);
+	if (framed) {
 
-	framectx.drawImage(preload, 3, 28);
+		framectx.drawImage(frame, 0, 0);
+
+		framectx.drawImage(preload, 3, 28);
+
+	} else {
+
+		framectx.drawImage(preload, 0, 0);
+
+	}
 
         //var timer  = new Timer();
         var doneReading = function (zip) {
 
 		loadedb = true; 
+
+		repeatStackCount = 0;
 
 		
 		//alert("parsing");
@@ -4248,6 +4104,11 @@ var ReadFile = function(url) {
 		repeatStacks = new Array();
 		ifElseStack = new Array();
 
+		varRefs = new Array(); //v2.0 faster variable and list whatever
+		listRefs = new Array();
+
+		bcRepeatStackIDs = new Array();
+
 		for (i=0;i<sprites.length;i++) {
 			layerOrder[i] = i;
 			scripts[i] = new Array();
@@ -4265,6 +4126,48 @@ var ReadFile = function(url) {
 
 			repeatStacks[i] = new Array();
 
+			bcRepeatStackIDs[i] = new Array();
+
+			//setting var refs
+
+			varRefs[i] = new Array();
+
+			if (project.variables != undefined) {
+
+				for (j=0;j<project.variables.length;j++) {
+					varRefs[i][project.variables[j].name] = project.variables[j];
+				}
+
+			}
+
+			if (sprites[i].variables != undefined) {
+
+				for (j=0;j<sprites[i].variables.length;j++) {
+					varRefs[i][sprites[i].variables[j].name] = sprites[i].variables[j];
+				}
+
+			}
+
+			//setting list refs
+
+			listRefs[i] = new Array();
+
+			if (project.lists != undefined) {
+
+				for (j=0;j<project.lists.length;j++) { //stage variables are first, which are then overridden by local.
+					listRefs[i][project.lists[j].listName] = project.lists[j];
+				}
+
+			}
+
+			if (sprites[i].lists != undefined) {
+
+				for (j=0;j<sprites[i].lists.length;j++) {
+					listRefs[i][sprites[i].lists[j].listName] = sprites[i].lists[j];
+				}
+
+			}
+
 			repeatStack[i] = new Array();
 			for (j=0;j<8;j++) {
 				repeatStack[i][j] = new Array();
@@ -4279,6 +4182,30 @@ var ReadFile = function(url) {
 			executionQueue[i] = new Array();
 
 		}
+
+
+			varRefs["stage"] = new Array();
+
+			if (project.variables != undefined) {
+
+				for (j=0;j<project.variables.length;j++) {
+					varRefs["stage"][project.variables[j].name] = project.variables[j];
+				}
+
+			}
+
+			listRefs["stage"] = new Array();
+
+			if (project.lists != undefined) {
+
+				for (j=0;j<project.lists.length;j++) {
+					listRefs["stage"][project.lists[j].listName] = project.lists[j];
+				}
+
+			}
+
+
+			bcRepeatStackIDs["stage"] = new Array();
 
 			scripts["stage"] = new Array();
 			scripts["stage"][2] = new Array();
