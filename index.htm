@@ -11,9 +11,6 @@
     <script type="text/javascript" src="http://canvg.googlecode.com/svn/trunk/rgbcolor.js"></script> 
     <script type="text/javascript" src="http://canvg.googlecode.com/svn/trunk/canvg.js"></script> 
 
-    <script type="text/javascript" src='http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js'></script>
-
-    <script type="text/javascript" src='http://ajax.googleapis.com/ajax/libs/jqueryui/1.7.2/jquery-ui.min.js'></script>
     <script type="text/javascript" src="script/sb2.js"></script> 
 
 <!-- To load a file on page load, embed a script that sets autoLoad to the sb2 file you wish to load, eg.
@@ -40,6 +37,7 @@
 	<!-- <canvas id='pencanvas' width='480' height='360'></canvas> -->
     <div>
       <select style='margin:2px 0px 12px 0px;' id="urlToLoad">
+
         <option>---PERFECT---</option>
         <option>MarioBros.sb2</option>
         <option>LINE Tennis.sb2</option>
@@ -61,6 +59,11 @@
         <option>sketch.sb2</option>
         <option>scratchkart.sb2</option>
         <option>SuperYoshiBros.sb2</option>
+
+        <option>---MESH---</option>
+        <option>linemesh.sb2</option>
+        <option>mariomesh.sb2</option>
+        <option>meshpaint.sb2</option>
 
         <option>---STUFF---</option>
         <option>yay.sb2</option>
@@ -84,14 +87,14 @@
 
         <option>advbroadcast.sb2</option>
 
+
       </select>
     <input style='padding:2px;'
-           onclick='ReadFile("examples/" + $("#urlToLoad").val())' type='button' title='Play' value='Play'/>
+           onclick='ReadFile("examples/" + document.getElementById("urlToLoad").value)' type='button' title='Play' value='Play'/>
 <a href="extras.htm" style="margin-left:15px;">Extras</a> - <a href="editor.htm">Editor</a> - <a href="http://code.google.com/p/sb2-js/">Repo</a> - <a href="iphone.htm">iPhone (web app)</a> <!-- <a href="indev.htm" style="margin-left:15px;">Indev</a> -->
     </div>
-<form name="f" style="position:absolute;opacity:0;">
-  <input id="focusstealer">
-</form>
+
+<input onclick='connectMesh();' type='button' title='Mesh Connect' value='Mesh'/> (ip is ws://86.128.200.191:50234) <br>
 
 now with more unformatted serif text
 

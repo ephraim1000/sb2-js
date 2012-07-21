@@ -18,9 +18,81 @@
 // base 64 encode by some guy 
 // thanks some guy
 
+function createVarRefs(spriten) {
+
+//setting var refs
+
+			varRefs[spriten] = new Array();
+
+			if (project.variables != undefined) {
+
+				for (j=0;j<project.variables.length;j++) {
+					varRefs[spriten][project.variables[j].name] = project.variables[j];
+				}
+
+			}
+
+			if (sprites[spriten].variables != undefined) {
+
+				for (j=0;j<sprites[spriten].variables.length;j++) {
+					varRefs[spriten][sprites[spriten].variables[j].name] = sprites[spriten].variables[j];
+				}
+
+			}
+
+			//setting list refs
+
+			listRefs[spriten] = new Array();
+
+			if (project.lists != undefined) {
+
+				for (j=0;j<project.lists.length;j++) { //stage variables are first, which are then overridden by local.
+					listRefs[spriten][project.lists[j].listName] = project.lists[j];
+				}
+
+			}
+
+			if (sprites[spriten].lists != undefined) {
+
+				for (j=0;j<sprites[spriten].lists.length;j++) {
+					listRefs[spriten][sprites[spriten].lists[j].listName] = sprites[spriten].lists[j];
+				}
+
+			}
+
+
+}
+
+function connectMesh() {
+	server = prompt("Server IP (eg. ws://86.128.200.191:50234)");
+
+	window.WebSocket = window.WebSocket || window.MozWebSocket;
+
+	connection = new WebSocket(server);
+
+	connection.onopen = function () {
+		alert("connected - make sure other user connects");
+		mesh = true;
+		// connection is opened and ready to use
+	};
+
+	connection.onerror = function (error) {
+		log(error);
+	};
+
+	connection.onmessage = function (message) {
+		json = JSON.parse(message.data);
+		//if (json.type == "greenFlag") execGreenFlag();
+		if (json.type == "variables") meshVars = json.data;
+		else if (json.type == "broadcast") scratchBroadcast("stage", json.data, true);
+	};
+	
+}
+
 function castNumber(casting) {
+	if (typeof casting === 'number') return casting;
 	casting = Number(casting);
-	if (typeof casting === "number") return casting;
+	if (casting == casting) return casting; //fast NaN test
 	else return 0;
 }
 
@@ -418,62 +490,6 @@ function processLayerOps() {
 			layerOrder.splice(Math.max(0, Math.min(sprites.length, (temp-layerOperations[i].num-1))), 0, layerOperations[i].sprite);
 		}
 
-
-		/*
-
-		if (layerOperations[i].op == "front") {
-			var temp = JSON.stringify(sprites[layerOperations[i].sprite]);
-			sprites.splice(layerOperations[i].sprite, 1);
-			sprites.push(JSON.parse(temp));
-
-			var temp = JSON.stringify(scripts[layerOperations[i].sprite]);
-			scripts.splice(layerOperations[i].sprite, 1);
-			scripts.push(JSON.parse(temp));
-
-			var temp = JSON.stringify(executionQueue[layerOperations[i].sprite]);
-			executionQueue.splice(layerOperations[i].sprite, 1);
-			executionQueue.push(JSON.parse(temp));
-
-			var temp = JSON.stringify(varIndex[layerOperations[i].sprite]);
-			varIndex.splice(layerOperations[i].sprite, 1);
-			varIndex.push(JSON.parse(temp));
-
-			var temp = JSON.stringify(soundIndex[layerOperations[i].sprite]);
-			soundIndex.splice(layerOperations[i].sprite, 1);
-			soundIndex.push(JSON.parse(temp));
-
-			var temp = JSON.stringify(listIndex[layerOperations[i].sprite]);
-			listIndex.splice(layerOperations[i].sprite, 1);
-			listIndex.push(JSON.parse(temp));
-		}
-		if (layerOperations[i].op == "back") {
-			var temp = JSON.stringify(sprites[layerOperations[i].sprite]);
-			sprites.splice(layerOperations[i].sprite, 1);
-			sprites.splice(Math.max(0, Math.min(sprites.length, (layerOperations[i].sprite-layerOperations[i].num))), 0, JSON.parse(temp));
-
-			var temp = JSON.stringify(scripts[layerOperations[i].sprite]);
-			scripts.splice(layerOperations[i].sprite, 1);
-			scripts.splice(Math.max(0, Math.min(scripts.length, (layerOperations[i].sprite-layerOperations[i].num))), 0, JSON.parse(temp));
-
-			var temp = JSON.stringify(executionQueue[layerOperations[i].sprite]);
-			executionQueue.splice(layerOperations[i].sprite, 1);
-			executionQueue.splice(Math.max(0, Math.min(executionQueue.length, (layerOperations[i].sprite-layerOperations[i].num))), 0, JSON.parse(temp));
-
-			var temp = JSON.stringify(varIndex[layerOperations[i].sprite]);
-			varIndex.splice(layerOperations[i].sprite, 1);
-			varIndex.splice(Math.max(0, Math.min(varIndex.length, (layerOperations[i].sprite-layerOperations[i].num))), 0, JSON.parse(temp));
-
-			var temp = JSON.stringify(soundIndex[layerOperations[i].sprite]);
-			soundIndex.splice(layerOperations[i].sprite, 1);
-			soundIndex.splice(Math.max(0, Math.min(soundIndex.length, (layerOperations[i].sprite-layerOperations[i].num))), 0, JSON.parse(temp));
-
-			var temp = JSON.stringify(listIndex[layerOperations[i].sprite]);
-			listIndex.splice(layerOperations[i].sprite, 1);
-			listIndex.splice(Math.max(0, Math.min(listIndex.length, (layerOperations[i].sprite-layerOperations[i].num))), 0, JSON.parse(temp));
-		}
-
-		*/
-
 	}
 
 }
@@ -517,6 +533,34 @@ function scratchPartialDraw(startl, finishl) { //used for color collision
 		if (sprites[spr2].visible) {
 
 		scratchDrawSprite(sprctx, spr2);
+
+		}
+
+	}
+
+}
+
+function scratchDrawAllBut(thectx, exceptfor) { //used for color collision
+
+
+	spr2 = 0;
+
+	for (num2=0;num2<layerOrder.length;num2++) { //spr=0;sprites.length;spr++
+
+
+// ------- SPRITES -------
+
+		spr2 = layerOrder[num2]; 
+
+		if (spr2 != exceptfor) {
+
+		if (sprites[spr2] == undefined) continue;
+
+		if (sprites[spr2].visible) {
+
+		scratchDrawSprite(thectx, spr2);
+
+		}
 
 		}
 
@@ -755,6 +799,18 @@ function scratchDrawSpeech() {
 
 // SCRATCH EXECUTION QUEUE FUNCTIONS
 
+function scratchBroadcast(spriteu, brdc, byMesh) {
+	active = true;
+	abortscripts = false;
+	scratchAddExecution(spriteu, 'broadcast', getBroadcastID(brdc), 1); 
+	if ((byMesh == undefined) && mesh) {
+		var packet = {};
+		packet.type = "broadcast";
+		packet.data = brdc;
+		connection.send(JSON.stringify(packet));
+	}
+}
+
 function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn, repeatNum) {
 	if (typeof repeatNum == "undefined") repeatNum = 0;
 	broadcastReturn = false;
@@ -766,14 +822,7 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 		repeatStacks[spriten].push(new Array());
 	}
 
-	var obj = new Object();
-	obj.type = type;
-	obj.scriptID = sid;
-	obj.timeUntil = time;
-	obj.repeatNum = repeatNum;
-	obj.topLevelType = ttype;
-	obj.topLevelSID = tsid;
-	obj.repeatStack = repeatstackn;
+	var obj = {"type": type, "scriptID": sid, "timeUntil": time, "repeatNum": repeatNum, "topLevelType": ttype, "topLevelSID": tsid, "repeatStack": repeatstackn};
 	executionQueue[spriten].push(obj);
 
 	} else {
@@ -801,16 +850,9 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 
 			}
 
-			var obj = new Object();
-			obj.type = type;
-			obj.scriptID = sid;
-			obj.timeUntil = time;
-			obj.repeatNum = repeatNum;
-			obj.topLevelType = "broadcast";
-			obj.topLevelSID = sid;
-			obj.repeatStack = repeatstackn;
+			var obj = {"type": type, "scriptID": sid, "timeUntil": time, "repeatNum": repeatNum, "topLevelType": "broadcast", "topLevelSID": sid, "repeatStack": repeatstackn};
 
-			executionQueue[spriten].push(obj);
+			executionQueue[spriten].splice(q+1, 0, obj);
 		}
 	}
 
@@ -836,16 +878,9 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 
 			}
 
-			var obj = new Object();
-			obj.type = type;
-			obj.scriptID = sid;
-			obj.timeUntil = time;
-			obj.repeatNum = repeatNum;
-			obj.topLevelType = "broadcast";
-			obj.topLevelSID = sid;
-			obj.repeatStack = repeatstackn;
+			var obj = {"type": type, "scriptID": sid, "timeUntil": time, "repeatNum": repeatNum, "topLevelType": "broadcast", "topLevelSID": sid, "repeatStack": repeatstackn};
 
-			executionQueue[spriten].push(obj);
+			executionQueue[spriten].splice(q+1, 0, obj);
 		}
 
 	}
@@ -1031,6 +1066,49 @@ function scratchRemoveExtraBrackets(text) {
 // START SCRATCH BLOCK FUNCTIONS
 // not all blocks need to be functions but it speeds up the ones that need multiple lines of code and get slowed down by eval()
 
+function scratchShowVar(spriten, name) {
+	if (spriten == "stage") {
+		var spritename = "Stage";
+	} else {
+		var spritename = sprites[spriten].objName;
+	}
+
+	if (spritename == undefined) return;
+
+	for (vent=0;vent<varDisplay.length;vent++) {
+		if (varDisplay[vent].target == "Stage" && varDisplay[vent].param == name) var varDisp = varDisplay[vent];
+	}
+
+	for (vent=0;vent<varDisplay.length;vent++) {
+		if (varDisplay[vent].target == spritename && varDisplay[vent].param == name) var varDisp = varDisplay[vent];
+	}
+
+	if (varDisp != undefined) varDisp.visible = true;
+	
+}
+
+function scratchHideVar(spriten, name) {
+	if (spriten == "stage") {
+		var spritename = "Stage";
+	} else {
+		var spritename = sprites[spriten].objName;
+	}
+
+	if (spritename == undefined) return;
+
+	for (vent=0;vent<varDisplay.length;vent++) {
+		if (varDisplay[vent].target == "Stage" && varDisplay[vent].param == name) var varDisp = varDisplay[vent];
+	}
+
+	for (vent=0;vent<varDisplay.length;vent++) {
+		if (varDisplay[vent].target == spritename && varDisplay[vent].param == name) var varDisp = varDisplay[vent];
+	}
+
+	if (varDisp != undefined) varDisp.visible = false;
+	
+}
+
+
 function scratchSetVar(spriten, name, value) {
 
 	varRefs[spriten][name].value = value;
@@ -1052,6 +1130,20 @@ function scratchReadVar(spriten, name) {
 
 	//log("Cannot read variable '"+name+"', does not exist!");
 }
+
+function scratchReadMesh(name) {
+
+	if (mesh) {
+
+		for (m=0;m<meshVars.length;m++) {
+			if (meshVars[m].name == name) return meshVars[m].value;
+		}	
+
+	}
+
+	return 0;
+}
+
 
 function scratchGetAttribute(name, target) {
 
@@ -1471,7 +1563,7 @@ function scratchPlaySound(spriten, name) { // plays sound, returns duration.
 
 	}
 
-	}
+	} else {
 
 	id = globalsoundIndex.indexOf(name);
 
@@ -1516,13 +1608,14 @@ function scratchPlaySound(spriten, name) { // plays sound, returns duration.
 
 	}
 
+	}
+
 	log("Cannot play sound '"+name+"', does not exist!");
 }
 
 function scratchColorCollision(spriten, target) {
 
-	scratchPartialDraw(drawStage, num);
-	drawStage = num;
+	//scratchPartialDraw(drawStage, num);
 
  	target = (16777216 + target).toString(16);
 	for (cl=0;cl<(6-target.length);i++) {
@@ -1540,7 +1633,7 @@ function scratchColorCollision(spriten, target) {
 	colctx.drawImage(images[costume.baseLayerID], (0-costume.rotationCenterX)+240, (0-costume.rotationCenterY)+180);
 
 	colctx.drawImage(pencanvas, 0, 0);
-	colctx.drawImage(sprcanvas, 0, 0);
+	scratchDrawAllBut(colctx, spriten);
 
 	var costume = sprites[spriten].costumes[sprites[spriten].currentCostumeIndex];
 
@@ -1556,9 +1649,15 @@ function scratchColorCollision(spriten, target) {
 	var cwidth = colcanvas.width;
 	var cheight = colcanvas.height;
 
+	var index = 0;
+	var c2data = colourcheck2.data;
+	var cdata = colourcheck.data;
+
 	for (var x=0;x<cwidth;x++) {
 		for (var y=0;y<cheight;y++) {
-			if ((colourcheck2.data[(x+y*cwidth)*4+3] != 0) && (colourcheck.data[(x+y*cwidth)*4] == targetr) && (colourcheck.data[(x+y*cwidth)*4+1] == targetg) && (colourcheck.data[(x+y*cwidth)*4+2] == targetb)) return true;
+			//if ((colourcheck2.data[(x+y*cwidth)*4+3] != 0) && (colourcheck.data[(x+y*cwidth)*4] == targetr) && (colourcheck.data[(x+y*cwidth)*4+1] == targetg) && (colourcheck.data[(x+y*cwidth)*4+2] == targetb)) return true;
+			if ((c2data[index+3] != 0) && (cdata[index] == targetr) && (cdata[index+1] == targetg) && (cdata[index+2] == targetb)) return true;
+			index += 4
 		}
 	}
 
@@ -1586,11 +1685,11 @@ function rotatedBoundsCalculation(destsprite, costume) {
 		SprCornersXRot = new Array();
 		SprCornersYRot = new Array();
 
-		var radians = (sprites[destsprite].direction-90)*Math.PI/180;
+		var radians = (90-sprites[destsprite].direction)*Math.PI/180;
 
 		for (rot=0; rot<4; rot++) {
 			SprCornersXRot.push(Math.cos(radians)*SprCornersX[rot]*scale+Math.sin(radians)*SprCornersY[rot]*scale);
-			SprCornersYRot.push(Math.cos(radians)*SprCornersY[rot]*scale+Math.sin(radians)*SprCornersX[rot]*scale);
+			SprCornersYRot.push((Math.cos(radians)*SprCornersY[rot]*scale+Math.sin(radians)*SprCornersX[rot]*scale));
 		}
 }
 
@@ -1713,7 +1812,12 @@ function scratchCollisionDetect(spriten, name) {
 	}
 
 
+	//debugctx.strokeRect(x1, y1, Math.max(1, xm1-x1), Math.max(1, ym1-y1));
+	//debugctx.strokeRect(x2, y2, Math.max(1, xm2-x2), Math.max(1, ym2-y2));
+
+
 	if ((x1 > xm2) || (x2 > xm1) || (y1 > ym2) || (y2 > ym1)) return false;
+
 
 	var xstart = Math.max(x1, x2, 0);
 	var xend = Math.min(xm1, xm2, 480);
@@ -1728,7 +1832,6 @@ function scratchCollisionDetect(spriten, name) {
 	scratchDrawSprite(colctx, spriten, true);
 
 	var colourcheck = colctx.getImageData(xstart, ystart, Math.max(1, xend-xstart), Math.max(1, yend-ystart));
-
 
 	colctx.clearRect(0, 0, 480, 360);	
 
@@ -1839,10 +1942,15 @@ function scratchColorCollision2(spriten, target1, target2) {
 
 	var cwidth = colcanvas.width;
 	var cheight = colcanvas.height;
+	var index = 0;
+	var c2data = colourcheck2.data;
+	var cdata = colourcheck.data;
 
 	for (var x=0;x<cwidth;x++) {
 		for (var y=0;y<cheight;y++) {
-			if ((colourcheck2.data[(x+y*cwidth)*4+3] != 0) && (colourcheck2.data[(x+y*cwidth)*4] == targetr) && (colourcheck2.data[(x+y*cwidth)*4+1] == targetg) && (colourcheck2.data[(x+y*cwidth)*4+2] == targetb) && (colourcheck.data[(x+y*cwidth)*4] == target2r) && (colourcheck.data[(x+y*cwidth)*4+1] == target2g) && (colourcheck.data[(x+y*cwidth)*4+2] == target2b)) return true;
+			//if ((colourcheck2.data[(x+y*cwidth)*4+3] != 0) && (colourcheck2.data[(x+y*cwidth)*4] == targetr) && (colourcheck2.data[(x+y*cwidth)*4+1] == targetg) && (colourcheck2.data[(x+y*cwidth)*4+2] == targetb) && (colourcheck.data[(x+y*cwidth)*4] == target2r) && (colourcheck.data[(x+y*cwidth)*4+1] == target2g) && (colourcheck.data[(x+y*cwidth)*4+2] == target2b)) return true;
+			if ((c2data[index+3] != 0) && (c2data[index] == targetr) && (c2data[index+1] == targetg) && (c2data[index+2] == targetb) && (cdata[index] == target2r) && (cdata[index+1] == target2g) && (cdata[index+2] == target2b)) return true;
+			index += 4;
 		}
 	}
 
@@ -1900,7 +2008,7 @@ function scratchChangePenShade(spriten, value) {
 function scratchPenColor(spriten, value) {
  	value = (16777216 + value).toString(16);
 
-	for (cl=0;cl<(6-value.length);i++) {
+	while (0<(6-value.length)) {
 		value = "0"+value;
 	}
 
@@ -1975,13 +2083,8 @@ function scratchClone(spriten, name) {
 			executionQueue.push(new Array());
 			repeatStacks.push(new Array());
 
-			var tempobj = new Object();
-			tempobj.time = 0;
-			tempobj.starttime = 0;
-			tempobj.x = 0;
-			tempobj.y = 0;
-			tempobj.startx = 0;
-			tempobj.starty = 0;
+			var tempobj = {"time": 0, "starttime": 0, "x": 0, "y": 0, "startx": 0, "starty": 0};
+
 			glideData.push(tempobj);
 
 			var temp = JSON.stringify(varIndex[i]);
@@ -1994,8 +2097,10 @@ function scratchClone(spriten, name) {
 			listIndex.push(JSON.parse(temp));
 
 
-			var temp = JSON.stringify(specialproperties[i]);
-			specialproperties.push(JSON.parse(temp));
+			specialproperties.push({"pendown": false, "pensize": 1, "color": "#000000", "say": "", "sayold": "", "saylist": [], "think": false, "ask": false, "effects": [], "penhue": 0, "pensaturation": 100, "penlightness": 50});
+			
+			specialproperties[specialproperties.length-1].effects['ghost'] = 0;
+			specialproperties[specialproperties.length-1].effects['brightness'] = 0;
 			
 			sprites[sprites.length-1].clone = true;
 
@@ -2011,6 +2116,8 @@ function scratchClone(spriten, name) {
 
 			sprites[sprites.length-1].scratchX = sprites[spriten].scratchX;
 			sprites[sprites.length-1].scratchY = sprites[spriten].scratchY;
+
+			createVarRefs(sprites.length-1);
 
 			return;
 		}
@@ -2033,6 +2140,9 @@ function scratchDeleteClone(spriten) {
 	soundIndex.splice(spriten, 1);
 	listIndex.splice(spriten, 1);
 	specialproperties.splice(spriten, 1);
+
+	varRefs.splice(spriten, 1);
+	listRefs.splice(spriten, 1);
 
 
 	num -= 1;
@@ -2197,7 +2307,7 @@ function IncLoad() {
 		if (framed) {
 			framectx.drawImage(frame, 0, 0)
 		}
-		if (typeof autoLoad != 'undefined') ReadFile(autoLoad);
+		if (typeof autoLoad != 'undefined') setTimeout(function() { ReadFile(autoLoad); }, 16);
 	}
 }
 
@@ -2212,6 +2322,7 @@ function renderSVGs() {
 			svgctx = canvas.getContext("2d");
 
 			var imagenum = svgnums[i];
+			//svgctx.drawSvg(svgs[i], 0, 0);
 			canvg(svgcanvas, svgs[i]);
 			images[imagenum] = new Image();
 			images[imagenum].src = svgcanvas.toDataURL()
@@ -2219,7 +2330,7 @@ function renderSVGs() {
 
 	execGreenFlag();
 
-	updateInterval = setInterval(update, 33);
+	updateInterval = setInterval(update, 1000/framerate);
 
 }
 
@@ -2527,6 +2638,13 @@ function mouseDown(evt) {
 			turboMode = (!(turboMode));
 		} else {
 			stopAll();
+
+			if (mesh) {
+				var packet = {};
+				packet.type = "greenFlag";
+				connection.send(JSON.stringify(packet));
+			}
+
 			execGreenFlag();
 		}
 	}
@@ -2560,6 +2678,8 @@ function mouseUp(evt) {
 function init() {
 
 	if (typeof framed == "undefined") framed = true;
+	if (typeof basedir == "undefined") basedir = "";
+	if (typeof framerate == "undefined") framerate = 30;
 
 	movedSincePen = false;
 
@@ -2567,6 +2687,7 @@ function init() {
 
 	touchesKeyCodes = []
 
+	mesh = false;
 	shiftKey = false;
 	turboMode = false;
 	scratchMouseDown = false;
@@ -2614,6 +2735,11 @@ function init() {
 	barcanvas.height = 8;
     	barctx = barcanvas.getContext('2d');
 
+	debugcanvas = document.createElement("canvas");
+	debugcanvas.width = 480;
+	debugcanvas.height = 360;
+    	debugctx = debugcanvas.getContext('2d');
+
 	framecanvas.onmouseup = function(evt) {
 		focus = 1;
 	};
@@ -2629,36 +2755,38 @@ function init() {
 
 	// Start Player Images
 
+	if ((typeof imagesPreloaded == "undefined") || (imagesPreloaded != true)) {
+
 	frame = new Image();
-	frame.src = "frame.png"
+	frame.src = basedir+"frame.png"
 	frame.onload = IncLoad;
 
 	bar = new Image();
-	bar.src = "bar.png"
+	bar.src = basedir+"bar.png"
 	bar.onload = IncLoad;
 
 	greenflagn = new Image();
-	greenflagn.src = "greenflag.png"
+	greenflagn.src = basedir+"greenflag.png"
 	greenflagn.onload = IncLoad;
 
 	greenflaga = new Image();
-	greenflaga.src = "greenflaga.png"
+	greenflaga.src = basedir+"greenflaga.png"
 	greenflaga.onload = IncLoad;
 
 	stopn = new Image();
-	stopn.src = "stop.png"
+	stopn.src = basedir+"stop.png"
 	stopn.onload = IncLoad;
 
 	stopa = new Image();
-	stopa.src = "stopa.png"
+	stopa.src = basedir+"stopa.png"
 	stopa.onload = IncLoad;
 
 	preload = new Image();
-	preload.src = "preloader.png"
+	preload.src = basedir+"preloader.png"
 	preload.onload = IncLoad;
 
 	accept = new Image();
-	accept.src = "accept.png"
+	accept.src = basedir+"accept.png"
 	accept.onload = IncLoad;
 
 	// Extra images for smartphones.
@@ -2670,6 +2798,11 @@ function init() {
 		touchbuttons.src = "phonebuttons.png"
 		touchbuttons.onload = IncLoad;
 
+	}
+
+	} else {
+		loaded = totalfiles-1;
+		IncLoad();
 	}
 
 	// End Player Images
@@ -2781,6 +2914,8 @@ function blockHandler(block, reporter) {
 				blockHandler(block[2], true);
 				scripttext += ", topType, topSID, topRepeat); return; ";
 				scripts[spritenum][2][scripts[spritenum][2].length] = scripttext.length;
+
+				scripttext += "specialproperties[spr].say = ''; ";
 
 			} else if (block[0] == "noteOn:duration:elapsed:from:") {
 
@@ -2925,17 +3060,6 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "doForever") {
 
-				/*
-
-				if (spritenum == -1) {
-					scripttext += "stageForever[stageForever.length] = function() { ";
-				} else {
-					scripttext += "foreverstatus[spr][foreverstatus[spr].length] = 'exec'; ";
-					scripttext += "forever[spr][forever[spr].length] = function() { ";
-				}
-
-				*/
-
 				scripttext += "scratchAddExecution(spr, 'forever', "+scripts[spritenum][1].length+", 0, topType, topSID, topRepeat); return; ";
 
 				ifLoopVar.push(scripts[spritenum][1].length);
@@ -2952,6 +3076,27 @@ function blockHandler(block, reporter) {
 
 				scripttext += "scratchAddExecution(spr, 'forever', "+ifLoopVar.pop()+", 1, topType, topSID, topRepeat); return; ";
 
+			} else if (block[0] == "doForeverIf") { //if you ever use this block you suck
+
+				scripttext += "scratchAddExecution(spr, 'forever', "+scripts[spritenum][1].length+", 0, topType, topSID, topRepeat); return; ";
+
+				ifLoopVar.push(scripts[spritenum][1].length);
+
+				scripts[spritenum][1][scripts[spritenum][1].length] = scripttext.length;
+
+				scripttext += "if (";
+				blockHandler(block[1], true);
+				scripttext += ") { ";
+
+				foreverlength += 1;
+				for (f=0;f<block[2].length;f++){
+					ifLoopVar.push(f);
+					blockHandler(block[2][f], false);
+					f = ifLoopVar.pop();
+				}
+
+				scripttext += "} scratchAddExecution(spr, 'forever', "+ifLoopVar.pop()+", 1, topType, topSID, topRepeat); return; ";
+
 			} else if (block[0] == "doReturn") {
 
 				scripttext += "return; "; // the most literal block name of them all
@@ -2959,15 +3104,15 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "broadcast:") {
 
-				scripttext += "scratchAddExecution(spr, 'broadcast', getBroadcastID(";
+				scripttext += "scratchBroadcast(spr, ";
 				blockHandler(block[1], true);
-				scripttext += "), 1); if(broadcastReturn) { repeatBreak = true; return; } ";
+				scripttext += "); if(broadcastReturn) { repeatBreak = true; return; }";
 
 			} else if (block[0] == "doBroadcastAndWait") {
 
-				scripttext += "scratchAddExecution(spr, 'broadcast', getBroadcastID(";
+				scripttext += "scratchBroadcast(spr, ";
 				blockHandler(block[1], true);
-				scripttext += "), 1);";
+				scripttext += "); if(broadcastReturn) { repeatBreak = true; return; }";
 
 				scripttext += "scratchAddExecution(spr, 'wait', "+scripts[spritenum][2].length+", 'untilBroadcast'";
 				scripttext += ", topType, topSID, topRepeat, getBroadcastID(";
@@ -3264,19 +3409,30 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "comeToFront") {
 
-				scripttext += "layerOperations[layerOperations.length] = new Object(); layerOperations[layerOperations.length-1].sprite = spr; layerOperations[layerOperations.length-1].op = 'front'; "
+				scripttext += "layerOperations[layerOperations.length] = {'sprite': spr, 'op': 'front'};"
 
 
 			} else if (block[0] == "goBackByLayers:") {
 
-				scripttext += "layerOperations[layerOperations.length] = new Object(); layerOperations[layerOperations.length-1].sprite = spr; layerOperations[layerOperations.length-1].op = 'back';  layerOperations[layerOperations.length-1].num = "
+				scripttext += "layerOperations[layerOperations.length] = {'sprite': spr, 'op': 'back', 'num': "
 				blockHandler(block[1], true);
-				scripttext += "; ";
+				scripttext += "}; ";
 
 			} else if (block[0] == "hide") {
 
 				scripttext += "sprites[spr].visible = false; ";
 
+			} else if (block[0] == "showVariable:") {
+				
+				scripttext += "scratchShowVar(spr, ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
+
+			} else if (block[0] == "hideVariable:") {
+				
+				scripttext += "scratchHideVar(spr, ";
+				blockHandler(block[1], true);
+				scripttext += "); ";
 
 			} else if (block[0] == "setGraphicEffect:to:") {
 
@@ -3337,6 +3493,11 @@ function blockHandler(block, reporter) {
 				blockHandler(block[1], true);
 				scripttext += ")";
 
+			} else if (block[0] == "sensor:") {
+
+				scripttext += "scratchReadMesh(";
+				blockHandler(block[1], true);
+				scripttext += ")";
 
 			} else if (block[0] == "getLine:ofList:") {
 
@@ -3624,23 +3785,13 @@ function stopAll() {
 			i -= 1;
 		} else {
 
-		specialproperties[i] = new Object();
-		specialproperties[i].pendown = Boolean(false);
-		specialproperties[i].pensize = 1;
-		specialproperties[i].color = "#000000";
-		specialproperties[i].say = "";
-		specialproperties[i].sayold = "";
-		specialproperties[i].saylist = new Array();
-		specialproperties[i].think = false;
-		specialproperties[i].ask = false;
-		specialproperties[i].effects = new Array();
+		specialproperties[i] = {"pendown": false, "pensize": 1, "color": "#000000", "say": "", "sayold": "", "saylist": [], "think": false, "ask": false, "effects": [], "penhue": 0, "pensaturation": 100, "penlightness": 50};
 		specialproperties[i].effects['ghost'] = 0;
 		specialproperties[i].effects['brightness'] = 0;
 		}
 	}
 
-	specialproperties["stage"] = new Object();
-	specialproperties["stage"].effects = new Array();
+	specialproperties["stage"] = {"effects": []};
 	specialproperties["stage"].effects['ghost'] = 0;
 	specialproperties["stage"].effects['brightness'] = 0;
 
@@ -3684,18 +3835,12 @@ function execGreenFlag() {
 
 	glideData = new Array();
 	for (spr=0;spr<sprites.length;spr++) {
-		glideData[spr] = new Object();
-		glideData[spr].time = 0;
-		glideData[spr].starttime = 0;
-		glideData[spr].x = 0;
-		glideData[spr].y = 0;
-		glideData[spr].startx = 0;
-		glideData[spr].starty = 0;
+		glideData[spr] = {"time": 0, "starttime": 0, "x": 0, "y": 0, "startx": 0, "starty": 0};
 	}
 
 	layerOperations = new Array();
 
-	for (spr=0;spr<sprites.length;spr++) {
+	for (spr=sprites.length-1;spr>-1;spr--) {
 		for (gfs=0;gfs<scripts[spr][0].length;gfs++) {
 			topType = "greenFlag";
 			topSID = gfs;
@@ -3740,7 +3885,7 @@ function executeFrame() {
 
 	spr = 0;
 
-	for (num=0;num<layerOrder.length;num++) { //spr=0;sprites.length;spr++
+	for (num=layerOrder.length-1;num>-1;num--) { //spr=0;sprites.length;spr++
 
 // ------- SPRITES -------
 
@@ -3847,14 +3992,13 @@ function update() {
 		ctx.fillText("render: "+Math.round(rendMs)+"ms", 475-ctx.measureText("render: "+Math.round(rendMs)+"ms").width, 70);
 	}
 
-	endFrameMs = new Date().getTime();
-
 	// END DRAWING CODE
 
 	if (framed) { //bundled frame drawing code
 
 		framectx.drawImage(frame, 0, 0);
 		framectx.drawImage(canvas, 3, 28);
+		//framectx.drawImage(debugcanvas, 3, 28);
 
 		if ((MouseX > 180) && (MouseX < 206) && (MouseY < 205) && (MouseY > 184)) {
 			framectx.drawImage(greenflaga, 423, 3);	
@@ -3888,10 +4032,12 @@ function update() {
 
 	}
 
+	//debugctx.clearRect(0, 0, 480, 360);
+
 	if(active) {
 
 	if (turboMode) {
-		while (new Date().getTime() - startAllFrameMs < 33) executeFrame();
+		while (new Date().getTime() - startAllFrameMs < 1000/framerate) executeFrame();
 	} else {
 		executeFrame();
 	
@@ -3907,7 +4053,14 @@ function update() {
 
 	//if you have no frame and want to call greenFlag, just have your greenFlag button call stopAll(); and execGreenFlag(); and stop would just call stopAll();
 
+	if (mesh) {
+		var packet = {};
+		packet.type = "variables";
+		packet.data = project.variables;
+		connection.send(JSON.stringify(packet));
+	}
 
+	endFrameMs = new Date().getTime();
 
 }
 
@@ -3990,6 +4143,8 @@ active = new Boolean(false);
    
 var ReadFile = function(url) {
 
+	meshVars = new Array();
+
 	if (typeof updateInterval != 'undefined') {
 		clearInterval(updateInterval);
 	}
@@ -4065,21 +4220,9 @@ var ReadFile = function(url) {
 		for (i=0;i<project.children.length;i++) {
 			if (project.children[i].indexInLibrary != undefined) {
 
-				specialproperties[sprites.length] = new Object();
-				specialproperties[sprites.length].pendown = Boolean(false);
-				specialproperties[sprites.length].pensize = 1;
-				specialproperties[sprites.length].say = "";
-				specialproperties[sprites.length].sayold = "";
-				specialproperties[sprites.length].saylist = new Array();
-				specialproperties[sprites.length].think = false;
-				specialproperties[sprites.length].ask = false;
-				specialproperties[sprites.length].color = "#000000";
-				specialproperties[sprites.length].penhue = "0";
-				specialproperties[sprites.length].pensaturation = "100";
-				specialproperties[sprites.length].penlightness = "50";
-				specialproperties[sprites.length].effects = new Array();
-				specialproperties[sprites.length].effects['ghost'] = 0;
-				specialproperties[sprites.length].effects['brightness'] = 0;
+				specialproperties[specialproperties.length] = {"pendown": false, "pensize": 1, "color": "#000000", "say": "", "sayold": "", "saylist": [], "think": false, "ask": false, "effects": [], "penhue": 0, "pensaturation": 100, "penlightness": 50};
+				specialproperties[specialproperties.length-1].effects['ghost'] = 0;
+				specialproperties[specialproperties.length-1].effects['brightness'] = 0;
 				sprites[sprites.length] = project.children[i];
 
 
@@ -4090,7 +4233,7 @@ var ReadFile = function(url) {
 		}
 
 
-		specialproperties["stage"] = new Object();
+		specialproperties["stage"] = {};
 		specialproperties["stage"].effects = new Array();
 		specialproperties["stage"].effects['ghost'] = 0;
 		specialproperties["stage"].effects['brightness'] = 0;
@@ -4128,45 +4271,7 @@ var ReadFile = function(url) {
 
 			bcRepeatStackIDs[i] = new Array();
 
-			//setting var refs
-
-			varRefs[i] = new Array();
-
-			if (project.variables != undefined) {
-
-				for (j=0;j<project.variables.length;j++) {
-					varRefs[i][project.variables[j].name] = project.variables[j];
-				}
-
-			}
-
-			if (sprites[i].variables != undefined) {
-
-				for (j=0;j<sprites[i].variables.length;j++) {
-					varRefs[i][sprites[i].variables[j].name] = sprites[i].variables[j];
-				}
-
-			}
-
-			//setting list refs
-
-			listRefs[i] = new Array();
-
-			if (project.lists != undefined) {
-
-				for (j=0;j<project.lists.length;j++) { //stage variables are first, which are then overridden by local.
-					listRefs[i][project.lists[j].listName] = project.lists[j];
-				}
-
-			}
-
-			if (sprites[i].lists != undefined) {
-
-				for (j=0;j<sprites[i].lists.length;j++) {
-					listRefs[i][sprites[i].lists[j].listName] = sprites[i].lists[j];
-				}
-
-			}
+			createVarRefs(i);			
 
 			repeatStack[i] = new Array();
 			for (j=0;j<8;j++) {
@@ -4239,27 +4344,30 @@ var ReadFile = function(url) {
 
 		scratchTempo = 120;
 
+		globalvarIndex = new Array();
+
 		if (typeof project.variables != 'undefined') {
 
-		globalvarIndex = new Array();
 		for (i=0;i<project.variables.length;i++) {
 			globalvarIndex[i] = project.variables[i].name;
 		}
 
 		}
 
+		globallistIndex = new Array();
+
 		if (typeof project.lists != 'undefined') {
 
-		globallistIndex = new Array();
 		for (i=0;i<project.lists.length;i++) {
 			globallistIndex[i] = project.lists[i].listName;
 		}
 
 		}
 
+		globalsoundIndex = new Array();
+
 		if (typeof project.sounds != 'undefined') {
 
-		globalsoundIndex = new Array();
 		for (i=0;i<project.sounds.length;i++) {
 			globalsoundIndex[i] = project.sounds[i].soundName;
 		}
