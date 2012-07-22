@@ -852,7 +852,8 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 
 			var obj = {"type": type, "scriptID": sid, "timeUntil": time, "repeatNum": repeatNum, "topLevelType": "broadcast", "topLevelSID": sid, "repeatStack": repeatstackn};
 
-			executionQueue[spriten].splice(q+1, 0, obj);
+			executionQueue[spriten].push(obj);
+			//executionQueue[spriten].splice(q+1, 0, obj);
 		}
 	}
 
@@ -880,7 +881,8 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 
 			var obj = {"type": type, "scriptID": sid, "timeUntil": time, "repeatNum": repeatNum, "topLevelType": "broadcast", "topLevelSID": sid, "repeatStack": repeatstackn};
 
-			executionQueue[spriten].splice(q+1, 0, obj);
+			executionQueue[spriten].push(obj);
+			//executionQueue[spriten].splice(q+1, 0, obj);
 		}
 
 	}
@@ -3106,13 +3108,13 @@ function blockHandler(block, reporter) {
 
 				scripttext += "scratchBroadcast(spr, ";
 				blockHandler(block[1], true);
-				scripttext += "); if(broadcastReturn) { repeatBreak = true; return; }";
+				scripttext += "); if(broadcastReturn) { repeatBreak = true; return; } ";
 
 			} else if (block[0] == "doBroadcastAndWait") {
 
 				scripttext += "scratchBroadcast(spr, ";
 				blockHandler(block[1], true);
-				scripttext += "); if(broadcastReturn) { repeatBreak = true; return; }";
+				scripttext += "); if(broadcastReturn) { repeatBreak = true; return; } ";
 
 				scripttext += "scratchAddExecution(spr, 'wait', "+scripts[spritenum][2].length+", 'untilBroadcast'";
 				scripttext += ", topType, topSID, topRepeat, getBroadcastID(";
@@ -3855,7 +3857,6 @@ function execGreenFlag() {
 
 	spr = "stage";
 	for (gfs=0;gfs<scripts["stage"][0].length;gfs++) {
-		log("exec "+gfs);
 		topType = "greenFlag";
 		topSID = gfs;
 		topRepeat = repeatStacks[spr].length;
