@@ -309,10 +309,16 @@ function readADPCM() {
 
 		volume=readBytes(s+offset, 2, 'int')
 		if (volume > 32767) volume = (volume-65536);
-		stepIndex=Math.max(0, Math.min(readBytes(s+offset+2, 1, 'int'), 88));
+		stepID=Math.max(0, Math.min(readBytes(s+offset+2, 1, 'int'), 88));
 		
 		s += 4
-		soundData.push(volume/32767);
+		var sample = Math.round(volume);
+		if (sample < 0) {
+			sample += 65536; // 2's complement signed
+		}
+		soundData.push(String.fromCharCode(sample % 256));
+		soundData.push(String.fromCharCode(Math.floor(sample / 256)));
+
 
 		for (as=0; as<samplesPerBlock; as++) {
 
@@ -340,7 +346,13 @@ function readADPCM() {
 
 				if (nib & 8) diff = 0-diff;
 				volume = Math.max(Math.min(32767, volume+diff), -32768)
-				soundData.push(volume/32767);
+
+				var sample = Math.round(volume);
+      				if (sample < 0) {
+					sample += 65536; // 2's complement signed
+				}
+				soundData.push(String.fromCharCode(sample % 256));
+				soundData.push(String.fromCharCode(Math.floor(sample / 256)));
 
 				stepID = Math.max(0, Math.min(stepID+resultStepChange[nib], 88));
 
@@ -409,7 +421,7 @@ function readADPCM() {
     }
 
   function encodeAudio16bitString(data) {
-      var n = data.length;
+      var n = data.length/2;
       var integer = 0, i;
       
       // 16-bit mono WAVE header template
@@ -438,14 +450,8 @@ function readADPCM() {
       insertLong(n * 2);
       
       // Output sound data
-      for (var i = 0; i < n; ++i) {
-        var sample = Math.round(Math.min(1, Math.max(-1, data[i])) * 32767);
-        if (sample < 0) {
-          sample += 65536; // 2's complement signed
-        }
-        header += String.fromCharCode(sample % 256);
-        header += String.fromCharCode(Math.floor(sample / 256));
-      }
+
+      header += data.join("");
       
       return 'data:audio/wav;base64,' + btoa(header);
     }
@@ -800,6 +806,7 @@ function scratchDrawSpeech() {
 // SCRATCH EXECUTION QUEUE FUNCTIONS
 
 function scratchBroadcast(spriteu, brdc, byMesh) {
+	if (brdc.substr(0,6) == "sb2js-") sb2jsFunction(spriteu, brdc); 
 	active = true;
 	abortscripts = false;
 	scratchAddExecution(spriteu, 'broadcast', getBroadcastID(brdc), 1); 
@@ -808,6 +815,13 @@ function scratchBroadcast(spriteu, brdc, byMesh) {
 		packet.type = "broadcast";
 		packet.data = brdc;
 		connection.send(JSON.stringify(packet));
+	}
+}
+
+function sb2jsFunction(spriten, command) {
+	switch (command) {
+		case "sb2js-close":
+			window.close();
 	}
 }
 
@@ -930,8 +944,6 @@ function processExecutionQueue() {
 
 					scripts[spr][2][thisQItem.scriptID]();
 
-					//eval(scripts[spr][2][thisQItem.scriptID]);
-
 					if (abortscripts) break;
 					executionQueue[spr].splice(q,1);
 
@@ -957,8 +969,6 @@ function processExecutionQueue() {
 
 					for (b=0; b<scripts[spr][scriptTypeToID(thisQItem.type)][thisQItem.scriptID].length; b++) {
 						scripts[spr][scriptTypeToID(thisQItem.type)][thisQItem.scriptID][b]();
-
-						//eval(scripts[spr][scriptTypeToID(thisQItem.type)][thisQItem.scriptID][b]);
 
 						if (abortscripts) break;
 						if (!(active)) break;
@@ -986,7 +996,6 @@ function processExecutionQueue() {
 
 					scripts[spr][scriptTypeToID(thisQItem.type)][thisQItem.scriptID]();
 
-					//eval(scripts[spr][scriptTypeToID(thisQItem.type)][thisQItem.scriptID]);
 					if (abortscripts) break;
 
 					if (repeatBreak || (thisQItem.repeatNum <= 0)) {
@@ -1121,7 +1130,7 @@ function scratchSetVar(spriten, name, value) {
 function scratchChangeVar(spriten, name, value) {
 
 	varRefs[spriten][name].value = castNumber(varRefs[spriten][name].value);
-	varRefs[spriten][name].value += castNumber(value);
+	varRefs[spriten][name].value += value;
 
 	//log("Cannot set variable '"+name+"', does not exist!");
 }
@@ -1318,7 +1327,6 @@ function scratchDistance(spriten, name) {
 
 function scratchPointTowards(spriten, name) {
 	if (name == '_mouse_') {
-		//alert();
 		sprites[spriten].direction = (Math.atan2(MouseX - sprites[spriten].scratchX, MouseY - sprites[spriten].scratchY)/Math.PI)*180;
 	}
 
@@ -1335,10 +1343,6 @@ function scratchPointTowards(spriten, name) {
 }
 
 function scratchStep(spriten, value) {
-	//alert(value);
-	sprites[spriten].scratchX = castNumber(sprites[spriten].scratchX);
-	sprites[spriten].scratchY = castNumber(sprites[spriten].scratchY);
-
 	sprites[spriten].scratchX += Math.sin(sprites[spriten].direction*Math.PI/180)*value;
 	sprites[spriten].scratchY += Math.cos(sprites[spriten].direction*Math.PI/180)*value;
 }
@@ -1438,8 +1442,6 @@ function scratchMod(val1, val2) {
 }
 
 function scratchGotoXY(spriten, x, y) {
-	x = castNumber(x);
-	y = castNumber(y);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
 		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
@@ -1452,7 +1454,6 @@ function scratchGotoXY(spriten, x, y) {
 }
 
 function scratchGotoX(spriten, x) {
-	x = castNumber(x);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
 		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
@@ -1464,7 +1465,6 @@ function scratchGotoX(spriten, x) {
 }
 
 function scratchChangeX(spriten, x) {
-	x = castNumber(x);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
 		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
@@ -1476,7 +1476,6 @@ function scratchChangeX(spriten, x) {
 }
 
 function scratchGotoY(spriten, y) {
-	y = castNumber(y);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
 		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
@@ -1488,7 +1487,6 @@ function scratchGotoY(spriten, y) {
 }
 
 function scratchChangeY(spriten, y) {
-	y = castNumber(y);
 	if (specialproperties[spriten].pendown) {
 		penctx.beginPath();
 		penctx.moveTo(sprites[spriten].scratchX+240.5, 180.5-sprites[spriten].scratchY);
@@ -1542,6 +1540,13 @@ function scratchChangeGraphicEffect(spriten, type, value) {
 	if (type == "ghost") specialproperties[spriten].effects[type] = Math.min(Math.max(0, specialproperties[spriten].effects[type]), 100);
 }
 
+function scratchSetVolume(spriten, value) {
+	specialproperties[spriten].volume = Math.min(100, Math.max(0, value));
+	for (aud=0;aud<audioref.length;aud++) {
+		if (spriten == audioref[aud]) audio[aud].volume = Math.min(100, Math.max(0, value))/100;
+	}
+}
+
 function scratchPlaySound(spriten, name) { // plays sound, returns duration.
 
 	if (!(audioSupported)) return 0;
@@ -1555,7 +1560,9 @@ function scratchPlaySound(spriten, name) { // plays sound, returns duration.
 	if (id != -1) {
 		try {
 		audio[sprites[spriten].sounds[id].soundID].currentTime = 0.0;
+		audio[sprites[spriten].sounds[id].soundID].volume = specialproperties[spriten].volume/100;
 		audio[sprites[spriten].sounds[id].soundID].play();
+		audioref[sprites[spriten].sounds[id].soundID] = spriten;
 		return audio[sprites[spriten].sounds[id].soundID].duration;
 		} catch(err) {
 		log("Fatal Error Playing "+name+", probably unsupported codec (not ADPCM?)");
@@ -1572,6 +1579,7 @@ function scratchPlaySound(spriten, name) { // plays sound, returns duration.
 	if (id != -1) {
 		try {
 		audio[project.sounds[id].soundID].currentTime = 0.0;
+		audio[project.sounds[id].soundID].volume = specialproperties[spriten].volume/100;
 		audio[project.sounds[id].soundID].play();
 		return audio[project.sounds[id].soundID].duration;
 		} catch(err) {
@@ -1620,7 +1628,7 @@ function scratchColorCollision(spriten, target) {
 	//scratchPartialDraw(drawStage, num);
 
  	target = (16777216 + target).toString(16);
-	for (cl=0;cl<(6-target.length);i++) {
+	while (0<(6-target.length)) {
 		target = "0"+target;
 	}
 
@@ -1695,6 +1703,61 @@ function rotatedBoundsCalculation(destsprite, costume) {
 		}
 }
 
+function boundsForSprite(spritey) {
+	costume = sprites[spritey].costumes[sprites[spritey].currentCostumeIndex];
+
+	if (sprites[spritey].rotationStyle == "leftRight") {
+		if (sprites[spritey].direction >= 0) {
+
+		var x1 = Math.round((sprites[spritey].scratchX+240)-costume.rotationCenterX)
+		var y1 = Math.round((180-sprites[spritey].scratchY)-costume.rotationCenterY)
+		var xm1 = x1+images[costume.baseLayerID].width;
+		var ym1 = y1+images[costume.baseLayerID].height;
+
+		} else {
+
+		var y1 = Math.round((180-sprites[spritey].scratchY)-costume.rotationCenterY)
+		var ym1 = y1+images[costume.baseLayerID].height;
+		var xm1 = Math.round((sprites[spritey].scratchX+240)+costume.rotationCenterX)
+		var x1 = xm1-images[costume.baseLayerID].width;
+		}
+	} else if (sprites[spritey].rotationStyle == "normal") {
+
+		rotatedBoundsCalculation(spritey, costume);
+
+		var x1 = sprites[spritey].scratchX+240+Math.min(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
+		var y1 = 180-(sprites[spritey].scratchY+Math.max(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
+		var xm1 = sprites[spritey].scratchX+240+Math.max(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
+		var ym1 = 180-(sprites[spritey].scratchY+Math.min(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
+
+	} else {
+		var x1 = Math.round((sprites[spritey].scratchX+240)-costume.rotationCenterX)
+		var y1 = Math.round((180-sprites[spritey].scratchY)-costume.rotationCenterY)
+		var xm1 = x1+images[costume.baseLayerID].width;
+		var ym1 = y1+images[costume.baseLayerID].height;
+	}
+
+	return [x1, y1, xm1, ym1];
+}
+
+function scratchBounceOffEdge(spriten) {
+		var tempB = boundsForSprite(spriten);
+		var x1 = tempB[0];
+		var y1 = tempB[1];
+		var xm1 = tempB[2];
+		var ym1 = tempB[3];
+
+		if (x1 < 0) { sprites[spriten].scratchX -= x1; sprites[spriten].direction = 0 - sprites[spriten].direction}
+		if (xm1 > 480) { sprites[spriten].scratchX += 480-xm1; sprites[spriten].direction = 0 - sprites[spriten].direction }
+		if (y1 < 0) { sprites[spriten].scratchX -= y1; sprites[spriten].direction = 180 - sprites[spriten].direction }
+		if (ym1 > 360) { sprites[spriten].scratchX += 360-ym1; sprites[spriten].direction = 180 - sprites[spriten].direction }
+
+		if (sprites[spriten].direction < -180) sprites[spriten].direction += 360*Math.ceil((sprites[spriten].direction+180)/-360);
+		sprites[spriten].direction = ((sprites[spriten].direction+180)%360)-180;
+
+		return;
+}
+
 function scratchCollisionDetect(spriten, name) {
 	if (!(sprites[spriten].visible)) return false;
 
@@ -1721,11 +1784,12 @@ function scratchCollisionDetect(spriten, name) {
 		else return false; */
 
 	} else if (name == '_edge_') {
-		var costume = sprites[spriten].costumes[sprites[spriten].currentCostumeIndex];
-		var x1 = (sprites[spriten].scratchX+240)-costume.rotationCenterX
-		var y1 = (180-sprites[spriten].scratchY)-costume.rotationCenterY
-		var xm1 = ((sprites[spriten].scratchX+240)-costume.rotationCenterX)+images[costume.baseLayerID].width;
-		var ym1 = ((180-sprites[spriten].scratchY)-costume.rotationCenterY)+images[costume.baseLayerID].height;
+
+		var tempB = boundsForSprite(spriten);
+		var x1 = tempB[0];
+		var y1 = tempB[1];
+		var xm1 = tempB[2];
+		var ym1 = tempB[3];
 
 		if (x1 < 0) return true;
 		if (xm1 > 480) return true;
@@ -1746,73 +1810,19 @@ function scratchCollisionDetect(spriten, name) {
 
 	if (!(sprites[othersprite].visible)) return false;
 	
-	costume = sprites[spriten].costumes[sprites[spriten].currentCostumeIndex];
+	var tempB = boundsForSprite(spriten);
 
-	if (sprites[spriten].rotationStyle == "leftRight") {
-		if (sprites[spriten].direction >= 0) {
+	var x1 = tempB[0];
+	var y1 = tempB[1];
+	var xm1 = tempB[2];
+	var ym1 = tempB[3];
 
-		var x1 = Math.round((sprites[spriten].scratchX+240)-costume.rotationCenterX)
-		var y1 = Math.round((180-sprites[spriten].scratchY)-costume.rotationCenterY)
-		var xm1 = x1+images[costume.baseLayerID].width;
-		var ym1 = y1+images[costume.baseLayerID].height;
+	var tempB = boundsForSprite(othersprite);
 
-		} else {
-
-		var y1 = Math.round((180-sprites[spriten].scratchY)-costume.rotationCenterY)
-		var ym1 = y1+images[costume.baseLayerID].height;
-		var xm1 = Math.round((sprites[spriten].scratchX+240)+costume.rotationCenterX)
-		var x1 = xm1-images[costume.baseLayerID].width;
-		}
-	} else if (sprites[spriten].rotationStyle == "normal") {
-
-		rotatedBoundsCalculation(spriten, costume);
-
-		var x1 = sprites[spriten].scratchX+240+Math.min(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
-		var y1 = 180-(sprites[spriten].scratchY+Math.max(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
-		var xm1 = sprites[spriten].scratchX+240+Math.max(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
-		var ym1 = 180-(sprites[spriten].scratchY+Math.min(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
-
-	} else {
-		var x1 = Math.round((sprites[spriten].scratchX+240)-costume.rotationCenterX)
-		var y1 = Math.round((180-sprites[spriten].scratchY)-costume.rotationCenterY)
-		var xm1 = x1+images[costume.baseLayerID].width;
-		var ym1 = y1+images[costume.baseLayerID].height;
-	}
-
-
-	costume = sprites[othersprite].costumes[sprites[othersprite].currentCostumeIndex];
-
-	if (sprites[othersprite].rotationStyle == "leftRight") {
-		if (sprites[othersprite].direction >= 0) {
-
-		var x2 = Math.round((sprites[othersprite].scratchX+240)-costume.rotationCenterX)
-		var y2 = Math.round((180-sprites[othersprite].scratchY)-costume.rotationCenterY)
-		var xm2 = x2+images[costume.baseLayerID].width;
-		var ym2 = y2+images[costume.baseLayerID].height;
-
-		} else {
-
-		var y2 = Math.round((180-sprites[othersprite].scratchY)-costume.rotationCenterY)
-		var ym2 = y2+images[costume.baseLayerID].height;
-		var xm2 = Math.round((sprites[othersprite].scratchX+240)+costume.rotationCenterX)
-		var x2 = xm2-images[costume.baseLayerID].width;
-		}
-	} else if (sprites[othersprite].rotationStyle == "normal") {
-
-		rotatedBoundsCalculation(othersprite, costume);
-
-		var x2 = sprites[othersprite].scratchX+240+Math.min(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
-		var y2 = 180-(sprites[othersprite].scratchY+Math.max(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
-		var xm2 = sprites[othersprite].scratchX+240+Math.max(SprCornersXRot[0], SprCornersXRot[1], SprCornersXRot[2], SprCornersXRot[3]);
-		var ym2 = 180-(sprites[othersprite].scratchY+Math.min(SprCornersYRot[0], SprCornersYRot[1], SprCornersYRot[2], SprCornersYRot[3]));
-
-	} else {
-		var x2 = Math.round((sprites[othersprite].scratchX+240)-costume.rotationCenterX)
-		var y2 = Math.round((180-sprites[othersprite].scratchY)-costume.rotationCenterY)
-		var xm2 = x2+images[costume.baseLayerID].width;
-		var ym2 = y2+images[costume.baseLayerID].height;
-	}
-
+	var x2 = tempB[0];
+	var y2 = tempB[1];
+	var xm2 = tempB[2];
+	var ym2 = tempB[3];
 
 	//debugctx.strokeRect(x1, y1, Math.max(1, xm1-x1), Math.max(1, ym1-y1));
 	//debugctx.strokeRect(x2, y2, Math.max(1, xm2-x2), Math.max(1, ym2-y2));
@@ -2025,8 +2035,6 @@ function scratchPenColor(spriten, value) {
 
 	specialproperties[spriten].color = "hsl("+specialproperties[spriten].penhue+", "+specialproperties[spriten].pensaturation+"%, "+specialproperties[spriten].penlightness+"%)";
 
-	//alert(specialproperties[spriten].color)
-
 	penctx.strokeStyle = specialproperties[spriten].color;
 }
 
@@ -2072,14 +2080,14 @@ function scratchStamp(spriten) {
 
 function scratchClone(spriten, name) {
 
-	for (i=0;i<sprites.length;i++) {
-		if (sprites[i].objName == name) {
+	for (c=0;c<sprites.length;c++) {
+		if (sprites[c].objName == name) {
 
-			var temp = JSON.stringify(sprites[i]);
+			var temp = JSON.stringify(sprites[c]);
 			sprites.push(JSON.parse(temp));
 
-			scripts.push(scripts[i]);
-			//var temp = JSON.stringify(scripts[i]);
+			scripts.push(scripts[c]);
+			//var temp = JSON.stringify(scripts[c]);
 			//scripts.push(JSON.parse(temp));
 
 			executionQueue.push(new Array());
@@ -2089,13 +2097,13 @@ function scratchClone(spriten, name) {
 
 			glideData.push(tempobj);
 
-			var temp = JSON.stringify(varIndex[i]);
+			var temp = JSON.stringify(varIndex[c]);
 			varIndex.push(JSON.parse(temp));
 
-			var temp = JSON.stringify(soundIndex[i]);
+			var temp = JSON.stringify(soundIndex[c]);
 			soundIndex.push(JSON.parse(temp));
 
-			var temp = JSON.stringify(listIndex[i]);
+			var temp = JSON.stringify(listIndex[c]);
 			listIndex.push(JSON.parse(temp));
 
 
@@ -2109,8 +2117,6 @@ function scratchClone(spriten, name) {
 			layerOrder.push(sprites.length-1);
 
 			for (cln=0;cln<scripts[scripts.length-1][6].length;cln++) {
-
-				//alert("yo theres a clone script in this bitch just thought you should know")
 
 				scratchAddExecution(sprites.length-1, "clone", cln, 0, "clone", cln);
 
@@ -2355,19 +2361,6 @@ function keyPress(evt) {
 
 		evt.preventDefault();
 
-
-	/*
-		//alert (evt.charCode);
-	
-		for (j=0;j<keyPressScripts[evt.charCode].length;j++) {
-			if (String(keyPressScripts[evt.charCode][j]).substr(0, 8) == "function") {
-				keyPressScripts[evt.charCode][j] = String(keyPressScripts[evt.charCode][j]).substr(14, String(keyPressScripts[evt.charCode][j]).length-15);
-			}
-
-			keyPressScripts[evt.charCode][j]();
-			//eval(keyPressScripts[evt.charCode][j]);
-		}
-	*/
 	}
 
 }
@@ -2419,7 +2412,6 @@ function keyDown(evt) {
 		for (spr=0;spr<sprites.length;spr++) {
 			for (j=0;j<scripts[spr][3][lowerCaseKeyCode].length;j++) {
 				scripts[spr][3][lowerCaseKeyCode][j]();
-				//eval(scripts[spr][3][lowerCaseKeyCode][j]);
 			}
 		}
 
@@ -2465,8 +2457,8 @@ function getMousePosition(evt) {
 	var _y = 0;
 
     while( el && !isNaN( el.offsetLeft ) && !isNaN( el.offsetTop ) ) {
-       	_x += el.offsetLeft; // - el.scrollLeft
-        _y += el.offsetTop; // - el.scrollTop
+       	_x += el.offsetLeft;
+        _y += el.offsetTop;
         el = el.offsetParent;
     }
 
@@ -2616,7 +2608,7 @@ function touchUp(evt) {
 function mouseDown(evt) {
 
 	scratchMouseDown = true;
-
+	focus = 1;
 	evt.preventDefault();
 
 	if (loadedb) {
@@ -2662,7 +2654,6 @@ function mouseDown(evt) {
 			if ((MouseX > sprites[ms].scratchX-costume.rotationCenterX) && (MouseX < (sprites[ms].scratchX-costume.rotationCenterX)+images[costume.baseLayerID].width) && (MouseY < sprites[ms].scratchY+costume.rotationCenterY) && (MouseY > sprites[ms].scratchY+costume.rotationCenterY-images[costume.baseLayerID].height)) {
 				for (j=0;j<scripts[ms][7].length;j++) {
 					scripts[ms][7][j]();
-					//eval(scripts[ms][7][j]);
 				}
 			}
 		}
@@ -2684,14 +2675,12 @@ function init() {
 	if (typeof framerate == "undefined") framerate = 30;
 
 	movedSincePen = false;
-
 	previousTouchesLength = 0;
-
 	touchesKeyCodes = []
 
 	mesh = false;
 	shiftKey = false;
-	turboMode = false;
+	if (typeof turboMode == 'undefined') turboMode = false;
 	scratchMouseDown = false;
 	drawStage = 0;
 
@@ -2718,7 +2707,7 @@ function init() {
 	document.onkeyup=keyUp;
 
 	parent.window.onmousedown = function(evt) {
-		focus = 0;
+		if (!scratchMouseDown) focus = 0;
 	};
 
 
@@ -2731,6 +2720,7 @@ function init() {
 
 	framecanvas = document.getElementById('scratch');
     	framectx = framecanvas.getContext('2d');
+	if (framed) framecanvas.style.outline = 0;
 
 	barcanvas = document.createElement("canvas");
 	barcanvas.width = 200;
@@ -2741,10 +2731,6 @@ function init() {
 	debugcanvas.width = 480;
 	debugcanvas.height = 360;
     	debugctx = debugcanvas.getContext('2d');
-
-	framecanvas.onmouseup = function(evt) {
-		focus = 1;
-	};
 
 	framecanvas.onmousedown = mouseDown;
 	framecanvas.ontouchstart = touchDown;
@@ -2812,16 +2798,15 @@ function init() {
 }
 
 
-function blockHandler(block, reporter) {
+function blockHandler(block, reporter, number) {
 
+	if (typeof number == "undefined") number = false;
 
 	if (!reporter) {
 		if (!(Object.prototype.toString.call( block ) === '[object Array]')) { //; //if it's not a list then it's not a block, it's actually a string
 			block = [block];
 		}
 	}
-
-	//alert(block[0]);
 
 	if (!reporter || (Object.prototype.toString.call( block ) === '[object Array]')){
 		var j=0;
@@ -2837,6 +2822,7 @@ function blockHandler(block, reporter) {
 					blockHandler(block[j], false);
 					j = ifLoopVar.pop();
 				}
+
 
 			} else if (block[0] == "whenClicked") {
 
@@ -2869,7 +2855,6 @@ function blockHandler(block, reporter) {
 
 				if (broadcastArgs.indexOf([block[0][1]]) == -1) {
 					broadcastArgs.push(block[0][1]);
-					repeatStack[spritenum][5][scripts[spritenum][5].length] = new Array();
 					scripts[spritenum][5][scripts[spritenum][5].length] = new Array();
 				}
 
@@ -2881,11 +2866,32 @@ function blockHandler(block, reporter) {
 					j = ifLoopVar.pop();
 				}
 
+			/*} else if (block[0][0] == "procDef") {
+
+				scriptValidity = true;
+
+				if (blockArgs.indexOf([block[0][1]]) == -1) {
+					blockArgs.push(block[0][1]);
+					scripts[spritenum][8][getBlockID(block[0][1])] = scripttext.length;
+				}
+	
+				scripttext += "var procNames = "+JSON.stringify(block[0][2])+"; "
+				scripttext += "var procNVars = procVars; "
+				scripttext += "procVars = new Array(); "
+				scripttext += "for (prc=0;prc<procNVars.length;prc++){ procVars[procNames[prc]] = procNVars[prc]; }"
+
+				for (j=1;j<block.length;j++){
+					ifLoopVar.push(j);
+					blockHandler(block[j], false);
+					j = ifLoopVar.pop();
+				}
+			*/
+
 			} else if (block[0] == "wait:elapsed:from:") {
 	
 
 				scripttext += "scratchAddExecution(spr, 'wait', "+scripts[spritenum][2].length+", ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ", topType, topSID, topRepeat); return; ";
 				scripts[spritenum][2][scripts[spritenum][2].length] = scripttext.length;
 		
@@ -2893,15 +2899,15 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "glideSecs:toX:y:elapsed:from:") {
 	
 				scripttext += "glideData[spr].starttime = ";	
-				blockHandler(block[1], true);	
+				blockHandler(block[1], true, true);	
 				scripttext += "; glideData[spr].time = glideData[spr].starttime; glideData[spr].startx = sprites[spr].scratchX; glideData[spr].x = ";	
-				blockHandler(block[2], true);	
+				blockHandler(block[2], true, true);	
 				scripttext += "; glideData[spr].starty = sprites[spr].scratchY; glideData[spr].y = ";	
-				blockHandler(block[3], true);	
+				blockHandler(block[3], true, true);	
 				scripttext += "; ";	
 
 				scripttext += "scratchAddExecution(spr, 'wait', "+scripts[spritenum][2].length+", ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ", topType, topSID, topRepeat); return; ";
 				scripts[spritenum][2][scripts[spritenum][2].length] = scripttext.length;
 
@@ -2913,7 +2919,7 @@ function blockHandler(block, reporter) {
 				scripttext += "); ";
 
 				scripttext += "scratchAddExecution(spr, 'wait', "+scripts[spritenum][2].length+", ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += ", topType, topSID, topRepeat); return; ";
 				scripts[spritenum][2][scripts[spritenum][2].length] = scripttext.length;
 
@@ -2922,10 +2928,10 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "noteOn:duration:elapsed:from:") {
 
 				scripttext += "var noteDuration = (";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += ")/(scratchTempo/60); ";
 				scripttext += "genNote(";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ", noteDuration); ";
 
 				scripttext += "scratchAddExecution(spr, 'wait', "+scripts[spritenum][2].length+", noteDuration, topType, topSID, topRepeat); return; ";
@@ -2935,7 +2941,7 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "rest:elapsed:from:") {
 
 				scripttext += "var noteDuration = (";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ")/(scratchTempo/60); ";
 
 				scripttext += "scratchAddExecution(spr, 'wait', "+scripts[spritenum][2].length+", noteDuration, topType, topSID, topRepeat); return; ";
@@ -2949,7 +2955,7 @@ function blockHandler(block, reporter) {
 				scripttext += "); ";
 
 				scripttext += "scratchAddExecution(spr, 'wait', "+scripts[spritenum][2].length+", ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += ", topType, topSID, topRepeat); return; ";
 				scripts[spritenum][2][scripts[spritenum][2].length] = scripttext.length;
 
@@ -2981,14 +2987,12 @@ function blockHandler(block, reporter) {
 
 
 				scripttext += "repeatBreak = false; scratchAddExecution(spr, 'repeat', "+scripts[spritenum][4].length+", 0, topType, topSID, topRepeat, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); return; ";
 				ifLoopVar.push(scripts[spritenum][4].length);
 				scripts[spritenum][4][scripts[spritenum][4].length] = scripttext.length;
 
 				scripttext += "repeatStacks[spr][topRepeat].push(q); if (executionQueue[spr][q].repeatNum > 0) {";
-
-				// scripttext += "repeatStack[spr][scriptTypeToID(topType)][topSID].push(q); ";
 
 				if (block[2] != null) {
 
@@ -3180,7 +3184,7 @@ function blockHandler(block, reporter) {
 				scripttext += "scratchChangeVar(spr, ";
 				blockHandler(block[1], true);
 				scripttext += ", ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "pointTowards:") {
@@ -3196,7 +3200,7 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "forward:") {
 
 				scripttext += "scratchStep(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "gotoSpriteOrMouse:") {
@@ -3265,7 +3269,7 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "timerReset") {
 
-				scripttext += "scratchTimeStart = new Date().getTime(); ";
+				scripttext += "scratchTimeStart = Date.now(); ";
 
 			} else if (block[0] == "clearPenTrails") {
 
@@ -3306,33 +3310,33 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "setSizeTo:") {
 
 				scripttext += "sprites[spr].scale = (";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ")/100; ";
 
 			} else if (block[0] == "setTempoTo:") {
 
 				scripttext += "scratchTempo = (";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "changeSizeBy:") {
 
 				scripttext += "sprites[spr].scale += (";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ")/100; ";
 
 			} else if (block[0] == "gotoX:y:") {
 				
 				scripttext += "scratchGotoXY(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ", ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "changeXposBy:") {
 				
 				scripttext += "scratchChangeX(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "penColor:") {
@@ -3344,53 +3348,57 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "changePenHueBy:") {
 				
 				scripttext += "scratchChangePenColor(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 
 			} else if (block[0] == "setPenHueTo:") {
 				
 				scripttext += "scratchSetPenColor(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "changePenShadeBy:") {
 				
 				scripttext += "scratchChangePenShade(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 
 			} else if (block[0] == "setPenShadeTo:") {
 				
 				scripttext += "scratchSetPenShade(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 
 			} else if (block[0] == "penSize:") {
 				
 				scripttext += "scratchPenSize(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "changeYposBy:") {
 				
 				scripttext += "scratchChangeY(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "xpos:") {
 				
 				scripttext += "scratchGotoX(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "ypos:") {
 				
 				scripttext += "scratchGotoY(spr, ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "); ";
+
+			} else if (block[0] == "bounceOffEdge") {
+
+				scripttext += "scratchBounceOffEdge(spr); ";
 
 			} else if (block[0] == "say:") {
 				
@@ -3417,7 +3425,7 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "goBackByLayers:") {
 
 				scripttext += "layerOperations[layerOperations.length] = {'sprite': spr, 'op': 'back', 'num': "
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "}; ";
 
 			} else if (block[0] == "hide") {
@@ -3441,7 +3449,7 @@ function blockHandler(block, reporter) {
 				scripttext += "scratchGraphicEffect(spr, ";
 				blockHandler(block[1], true);
 				scripttext += ", ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "changeGraphicEffect:by:") {
@@ -3449,7 +3457,7 @@ function blockHandler(block, reporter) {
 				scripttext += "scratchChangeGraphicEffect(spr, ";
 				blockHandler(block[1], true);
 				scripttext += ", ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += "); ";
 
 			} else if (block[0] == "playSound:") {
@@ -3458,20 +3466,27 @@ function blockHandler(block, reporter) {
 				blockHandler(block[1], true);
 				scripttext += "); ";
 
+
+			} else if (block[0] == "setVolumeTo:") {
+
+				scripttext += "scratchSetVolume(spr, ";
+				blockHandler(block[1], true, true);
+				scripttext += "); ";
+
 			} else if (block[0] == "turnRight:") {
 
-				scripttext += "sprites[spr].direction += castNumber(";
-				blockHandler(block[1], true);
-				scripttext += "); ";
+				scripttext += "sprites[spr].direction += ";
+				blockHandler(block[1], true, true);
+				scripttext += "; ";
 				scripttext += "if (sprites[spr].direction < -180) sprites[spr].direction += 360*Math.ceil((sprites[spr].direction+180)/-360); ";
 				scripttext += "sprites[spr].direction = ((sprites[spr].direction+180)%360)-180; ";
 
 
 			} else if (block[0] == "heading:") {
 
-				scripttext += "sprites[spr].direction = castNumber(";
-				blockHandler(block[1], true);
-				scripttext += "); ";
+				scripttext += "sprites[spr].direction = ";
+				blockHandler(block[1], true, true);
+				scripttext += "; ";
 				scripttext += "if (sprites[spr].direction < -180) sprites[spr].direction += 360*Math.ceil((sprites[spr].direction+180)/-360); ";
 				scripttext += "sprites[spr].direction = ((sprites[spr].direction+180)%360)-180; ";
 
@@ -3479,7 +3494,7 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "turnLeft:") {
 
 				scripttext += "sprites[spr].direction -= ";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "; ";
 				scripttext += "if (sprites[spr].direction < -180) sprites[spr].direction += 360*Math.ceil((sprites[spr].direction+180)/-360); ";
 				scripttext += "sprites[spr].direction = ((sprites[spr].direction+180)%360)-180; ";
@@ -3491,23 +3506,30 @@ function blockHandler(block, reporter) {
 
 			if (block[0] == "readVariable") {
 
+				if (number) scripttext += "castNumber(";
 				scripttext += "scratchReadVar(spr, ";
 				blockHandler(block[1], true);
 				scripttext += ")";
+				if (number) scripttext += ")";
 
 			} else if (block[0] == "sensor:") {
 
+				if (number) scripttext += "castNumber(";
 				scripttext += "scratchReadMesh(";
 				blockHandler(block[1], true);
 				scripttext += ")";
+				if (number) scripttext += ")";
 
 			} else if (block[0] == "getLine:ofList:") {
 
+
+				if (number) scripttext += "castNumber(";
 				scripttext += "scratchReadList(spr, ";
 				blockHandler(block[1], true);
 				scripttext += ", ";
 				blockHandler(block[2], true);
 				scripttext += ")";
+				if (number) scripttext += ")";
 
 
 			} else if (block[0] == "lineCountOfList:") {
@@ -3518,17 +3540,21 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "contentsOfList:") {
 
+				if (number) scripttext += "castNumber(";
 				scripttext += "scratchListContents(spr, ";
 				blockHandler(block[1], true);
 				scripttext += ")";
+				if (number) scripttext += ")";
 
 			} else if (block[0] == "getAttribute:of:") {
 
+				if (number) scripttext += "castNumber(";
 				scripttext += "scratchGetAttribute(";
 				blockHandler(block[1], true);
 				scripttext += ", ";
 				blockHandler(block[2], true);
 				scripttext += ")";
+				if (number) scripttext += ")";
 
 			} else if (block[0] == "list:contains:") {
 
@@ -3541,11 +3567,13 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "computeFunction:of:") {
 
+				if (number) scripttext += "castNumber(";
 				scripttext += "scratchMathFunction(";
 				blockHandler(block[1], true);
 				scripttext += ", ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += ")";
+				if (number) scripttext += ")";
 
 
 			} else if (block[0] == "=") {
@@ -3558,19 +3586,19 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == ">") {
 
-				scripttext += "(castNumber(";
-				blockHandler(block[1], true);
-				scripttext += ") > castNumber(";
-				blockHandler(block[2], true);
-				scripttext += "))";
+				scripttext += "(";
+				blockHandler(block[1], true, true);
+				scripttext += " > ";
+				blockHandler(block[2], true, true);
+				scripttext += ")";
 
 			} else if (block[0] == "<") {
 
-				scripttext += "(castNumber(";
-				blockHandler(block[1], true);
-				scripttext += ") < castNumber(";
-				blockHandler(block[2], true);
-				scripttext += "))";
+				scripttext += "(";
+				blockHandler(block[1], true, true);
+				scripttext += " < ";
+				blockHandler(block[2], true, true);
+				scripttext += ")";
 
 			} else if (block[0] == "not") {
 
@@ -3597,35 +3625,39 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "-") {
 
 				scripttext += "(";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += " - ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += ")";
 
 			} else if (block[0] == "+") {
 
-				scripttext += "(castNumber(";
-				blockHandler(block[1], true);
-				scripttext += ") + castNumber(";
-				blockHandler(block[2], true);
-				scripttext += "))";
+				scripttext += "(";
+				blockHandler(block[1], true, true);
+				scripttext += " + ";
+				blockHandler(block[2], true, true);
+				scripttext += ")";
 
 
 			} else if (block[0] == "concatenate:with:") {
 
+				if (number) scripttext += "castNumber(";
 				scripttext += "(String(";
 				blockHandler(block[1], true);
 				scripttext += ") + String(";
 				blockHandler(block[2], true);
 				scripttext += "))";
+				if (number) scripttext += ")";
 
 			} else if (block[0] == "timer") {
 
-				scripttext += "(((new Date().getTime()) - scratchTimeStart)/1000)";
+				scripttext += "(((Date.now()) - scratchTimeStart)/1000)";
 
 			} else if (block[0] == "answer") {
 
+				if (number) scripttext += "castNumber(";
 				scripttext += "(scratchAnswer)";
+				if (number) scripttext += ")";
 
 			} else if (block[0] == "mouseX") {
 
@@ -3638,33 +3670,33 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "*") {
 
 				scripttext += "(";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += " * ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += ")";
 
 			} else if (block[0] == "\\\\") {
 
 				scripttext += "scratchMod(";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ", ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += ")";
 
 
 			} else if (block[0] == "\/") {
 
 				scripttext += "(";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += " / ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += ")";
 
 
 			} else if (block[0] == "rounded") {
 
 				scripttext += "Math.round(";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ")";
 
 			} else if (block[0] == "keyPressed:") {
@@ -3702,11 +3734,10 @@ function blockHandler(block, reporter) {
 			} else if (block[0] == "randomFrom:to:") {
 
 				scripttext += "scratchRandomFromTo(";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += ", ";
-				blockHandler(block[2], true);
+				blockHandler(block[2], true, true);
 				scripttext += ")";
-
 
 			} else if (block[0] == "touchingColor:") {
 
@@ -3730,11 +3761,13 @@ function blockHandler(block, reporter) {
 
 			} else if (block[0] == "letter:of:") {
 
+				if (number) scripttext += "castNumber(";
 				scripttext += "(String(";
 				blockHandler(block[2], true);
 				scripttext += ").charAt(";
-				blockHandler(block[1], true);
+				blockHandler(block[1], true, true);
 				scripttext += "-1))";
+				if (number) scripttext += ")";
 
 			} else if (block[0] == "touching:") {
 
@@ -3758,9 +3791,11 @@ function blockHandler(block, reporter) {
 		}
 	} else {
 		if (typeof block == 'string') {
-			scripttext += "'"+block.replace("'", "\\'")+"'";
+			if (number) scripttext += castNumber(block);
+			else scripttext += "'"+block.replace("'", "\\'")+"'";
 		} else {
-			scripttext += block;
+			if (number) scripttext += castNumber(block);
+			else scripttext += block;
 		}
 	}
 	return;
@@ -3787,23 +3822,21 @@ function stopAll() {
 			i -= 1;
 		} else {
 
-		specialproperties[i] = {"pendown": false, "pensize": 1, "color": "#000000", "say": "", "sayold": "", "saylist": [], "think": false, "ask": false, "effects": [], "penhue": 0, "pensaturation": 100, "penlightness": 50};
+		specialproperties[i] = {"pendown": false, "pensize": 1, "color": "#000000", "say": "", "sayold": "", "saylist": [], "think": false, "ask": false, "effects": [], "penhue": 0, "pensaturation": 100, "penlightness": 50, "volume": 100};
 		specialproperties[i].effects['ghost'] = 0;
 		specialproperties[i].effects['brightness'] = 0;
 		}
 	}
 
 	specialproperties["stage"] = {"effects": []};
+	specialproperties["stage"].volume = 100;
 	specialproperties["stage"].effects['ghost'] = 0;
 	specialproperties["stage"].effects['brightness'] = 0;
 
 	executionQueue = new Array();
 
-	repeatStack = new Array();
-
 	for (i=0;i<sprites.length;i++) {
 		executionQueue[i] = new Array();
-		repeatStack[i] = new Array();
 	}
 	executionQueue['stage'] = new Array();
 
@@ -3814,16 +3847,16 @@ function execGreenFlag() {
 
 	q = -1;
 
-	endFrameMs = new Date().getTime();
+	endFrameMs = Date.now();
 
-	startFrameMs = new Date().getTime();
+	startFrameMs = Date.now();
 
 	active = true;
 
 	askString = "";
 	askOwner = -1;
 
-	scratchTimeStart = new Date().getTime();
+	scratchTimeStart = Date.now();
 
 	executionQueue = new Array();
 
@@ -3849,7 +3882,6 @@ function execGreenFlag() {
 			topRepeat = repeatStacks[spr].length;
 			repeatStacks[spr].push([]);
 			scripts[spr][0][gfs]();
-			//eval(scripts[spr][0][i]);
 		}
 	}
 
@@ -3862,7 +3894,6 @@ function execGreenFlag() {
 		topRepeat = repeatStacks[spr].length;
 		repeatStacks[spr].push([]);
 		scripts["stage"][0][gfs]();
-		//eval(scripts["stage"][0][i]);
 	}
 
 
@@ -3876,7 +3907,7 @@ function executeFrame() {
 
 	drawStage = 0;
 
-	var tempTime = new Date().getTime()
+	var tempTime = Date.now();
 
 	FPS = 1000/(tempTime - startFrameMs);
 
@@ -3949,7 +3980,7 @@ function update() {
 
 	framectx.clearRect(0, 0, 486, 391);
 
-	renderMs = new Date().getTime();
+	renderMs = Date.now();
 
 	scratchPartialDraw(drawStage, layerOrder.length);
 
@@ -3974,7 +4005,7 @@ function update() {
 		ctx.globalAlpha = 1;
 	}
 
-	rendMs = new Date().getTime() - renderMs;
+	rendMs = Date.now() - renderMs;
 
 	if (console) {
 		ctx.globalAlpha = 0.75;
@@ -3997,8 +4028,11 @@ function update() {
 
 	if (framed) { //bundled frame drawing code
 
+		if (focus == 0) framectx.globalAlpha = 0.5;
 		framectx.drawImage(frame, 0, 0);
+		framectx.globalAlpha = 1;
 		framectx.drawImage(canvas, 3, 28);
+
 		//framectx.drawImage(debugcanvas, 3, 28);
 
 		if ((MouseX > 180) && (MouseX < 206) && (MouseY < 205) && (MouseY > 184)) {
@@ -4023,9 +4057,9 @@ function update() {
 
 	//-----------EXPERIMENTAL DRAWING AT START OF FRAME-----------
 
-	freeMs = new Date().getTime() - endFrameMs;
+	freeMs = Date.now() - endFrameMs;
 
-	startAllFrameMs = new Date().getTime();
+	startAllFrameMs = Date.now();
 
 	if (focus == 1) {
 
@@ -4038,17 +4072,17 @@ function update() {
 	if(active) {
 
 	if (turboMode) {
-		while (new Date().getTime() - startAllFrameMs < 1000/framerate) executeFrame();
+		while (Date.now() - startAllFrameMs < 1000/framerate) executeFrame();
 	} else {
 		executeFrame();
 	
 	}
 
 	} else {
-		startFrameMs = new Date().getTime();
+		startFrameMs = Date.now();
 	}
 
-	updateMs = new Date().getTime() - startFrameMs;
+	updateMs = Date.now() - startFrameMs;
 
 	
 
@@ -4061,7 +4095,7 @@ function update() {
 		connection.send(JSON.stringify(packet));
 	}
 
-	endFrameMs = new Date().getTime();
+	endFrameMs = Date.now();
 
 }
 
@@ -4116,6 +4150,13 @@ function ScratchToJS(lscripts) {
 		for (i=0;i<scripts[spritenum][7].length;i++) {
 			if (typeof scripts[spritenum][7][i] == 'number') {
 				scripts[spritenum][7][i] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][6][i]));
+			}
+		}
+		for (i=0;i<broadcastArgs.length;i++) {
+			for (j=0;j<scripts[spritenum][5][i].length;j++) {	
+			if (typeof scripts[spritenum][5][i][j] == 'number') {
+				scripts[spritenum][5][i][j] = scratchRemoveExtraBrackets(scripttext.substr(scripts[spritenum][5][i][j]));
+			}
 			}
 		}
 		for (i=0;i<broadcastArgs.length;i++) {
@@ -4196,15 +4237,13 @@ var ReadFile = function(url) {
 
 	}
 
-        //var timer  = new Timer();
         var doneReading = function (zip) {
 
 		loadedb = true; 
-
+		focus = 1;
 		repeatStackCount = 0;
 
 		
-		//alert("parsing");
 		for (i=0;i<zipFile.entries.length;i++) {
 			if (zipFile.entries[i].name == "project.json") {
 				project = JSON.parse(zipFile.entries[i].extract(null, true));
@@ -4221,7 +4260,7 @@ var ReadFile = function(url) {
 		for (i=0;i<project.children.length;i++) {
 			if (project.children[i].indexInLibrary != undefined) {
 
-				specialproperties[specialproperties.length] = {"pendown": false, "pensize": 1, "color": "#000000", "say": "", "sayold": "", "saylist": [], "think": false, "ask": false, "effects": [], "penhue": 0, "pensaturation": 100, "penlightness": 50};
+				specialproperties[specialproperties.length] = {"pendown": false, "pensize": 1, "color": "#000000", "say": "", "sayold": "", "saylist": [], "think": false, "ask": false, "effects": [], "penhue": 0, "pensaturation": 100, "penlightness": 50, "volume": 100};
 				specialproperties[specialproperties.length-1].effects['ghost'] = 0;
 				specialproperties[specialproperties.length-1].effects['brightness'] = 0;
 				sprites[sprites.length] = project.children[i];
@@ -4235,6 +4274,7 @@ var ReadFile = function(url) {
 
 
 		specialproperties["stage"] = {};
+		specialproperties["stage"].volume = 100;
 		specialproperties["stage"].effects = new Array();
 		specialproperties["stage"].effects['ghost'] = 0;
 		specialproperties["stage"].effects['brightness'] = 0;
@@ -4244,9 +4284,7 @@ var ReadFile = function(url) {
 		scripts = new Array();
 		executionQueue = new Array();
 		layerOrder = new Array();
-		repeatStack = new Array();
 		repeatStacks = new Array();
-		ifElseStack = new Array();
 
 		varRefs = new Array(); //v2.0 faster variable and list whatever
 		listRefs = new Array();
@@ -4273,17 +4311,6 @@ var ReadFile = function(url) {
 			bcRepeatStackIDs[i] = new Array();
 
 			createVarRefs(i);			
-
-			repeatStack[i] = new Array();
-			for (j=0;j<8;j++) {
-				repeatStack[i][j] = new Array();
-			}
-			repeatStack[i][3] = new Array();
-			for (j=0;j<256;j++) {
-				repeatStack[i][3][j] = new Array();
-			}
-
-			ifElseStack[i] = new Array();
 
 			executionQueue[i] = new Array();
 
@@ -4325,15 +4352,6 @@ var ReadFile = function(url) {
 			scripts["stage"][5] = new Array();
 			scripts["stage"][6] = new Array();
 			scripts["stage"][7] = new Array();
-
-			repeatStack["stage"] = new Array();
-			for (j=0;j<8;j++) {
-				repeatStack["stage"][j] = new Array();
-			}
-			repeatStack["stage"][3] = new Array();
-			for (j=0;j<256;j++) {
-				repeatStack["stage"][3][j] = new Array();
-			}
 
 
 			repeatStacks["stage"] = new Array();
@@ -4414,7 +4432,10 @@ var ReadFile = function(url) {
 		svgs = new Array();
 		svgnums = new Array();
 		audio = new Array();
+		audioref = new Array();
 
+		var AudioTimer = Date.now();
+		
 		for (i=0;i<zipFile.entries.length;i++) {
 			var ext = (zipFile.entries[i].name).substr(zipFile.entries[i].name.length-3)
 			if (ext == "png") {
@@ -4422,13 +4443,11 @@ var ReadFile = function(url) {
 				var imgdata = zipFile.entries[i].extract()
 				images[imagenum] = new Image();
 				images[imagenum].src = "data:image/png;base64," + base64Encode(imgdata) //.toString() .replace(",", "");
-				//document.getElementById('test2').innerHTML += "<img src='"+ images[imagenum].src +"'>"
 			} else if (ext == "jpg") {
 				var imagenum = parseInt((zipFile.entries[i].name).substr(0, zipFile.entries[i].name.length-4));
 				var imgdata = zipFile.entries[i].extract()
 				images[imagenum] = new Image();
 				images[imagenum].src = "data:image/jpeg;base64," + base64Encode(imgdata) //.toString() .replace(",", "");
-				//document.getElementById('test2').innerHTML += "<img src='"+ images[imagenum].src +"'>"
 			} else if (ext == "svg") {
 				svgs[svgs.length] = zipFile.entries[i].extract(null, true);
 				svgnums[svgnums.length] = parseInt((zipFile.entries[i].name).substr(0, zipFile.entries[i].name.length-4));
@@ -4438,6 +4457,7 @@ var ReadFile = function(url) {
 				var imagenum = parseInt((zipFile.entries[i].name).substr(0, zipFile.entries[i].name.length-4));
 				var imgdata = zipFile.entries[i].extract()
 				audio[imagenum] = document.createElement("audio");
+				audioref[imagenum] = "stage";
 
 				uInt8Array = new Uint8Array(imgdata);
 
@@ -4451,9 +4471,13 @@ var ReadFile = function(url) {
 			}
 		}
 
+		log("Media took "+((Date.now())-AudioTimer)+" ms");
+
 		//penctx.drawImage(images[0], 0, 0);
 		scratchClearPen();
 		spritenum = "stage";
+
+		var AudioTimer = Date.now();
 
 		if (typeof project.scripts != 'undefined') {
 			javascriptgen = ScratchToJS(project.scripts);
@@ -4466,6 +4490,8 @@ var ReadFile = function(url) {
 				javascriptgen = ScratchToJS(sprites[spritenum].scripts);
 			}
 		}
+
+		log("Scripts took "+((Date.now())-AudioTimer)+" ms");
 
 		penctx.lineCap = "round"; 
 
