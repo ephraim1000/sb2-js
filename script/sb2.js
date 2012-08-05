@@ -902,6 +902,12 @@ function scratchAddExecution(spriten, type, sid, time, ttype, tsid, repeatstackn
 	}
 }
 
+function terminateScript(spritey) {
+	for (r=0; r<executionQueue[spritey].length; r++) {
+		if ((r != q) && (executionQueue[spritey][r].topLevelSID = topSID)) eraseExec(spritey, r);
+	}
+}
+
 function eraseExec(spriten, value) {
 	executionQueue[spriten].splice(value, 1);
 
@@ -3105,6 +3111,7 @@ function blockHandler(block, reporter, number) {
 
 			} else if (block[0] == "doReturn") {
 
+				scripttext += "terminateScript(spr); "; // the most literal block name of them all
 				scripttext += "return; "; // the most literal block name of them all
 
 
